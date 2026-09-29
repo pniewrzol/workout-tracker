@@ -1,0 +1,6 @@
+{
+  "name": "Trening Tracker",
+  "description": "Aplikacja do monitorowania treningów z rejestracją serii, ciężaru, powtórzeń, wykresami postępów i multimediami.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
