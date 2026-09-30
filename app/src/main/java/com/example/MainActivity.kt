@@ -331,8 +331,8 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                     SettingsScreen(
                         currentThemeMode = appThemeMode,
                         onThemeModeChange = { mode -> viewModel.setThemeMode(mode) },
-                        onExportBackup = { uri, callback -> viewModel.exportBackup(uri, callback) },
-                        onRestoreBackup = { uri, callback -> viewModel.restoreBackup(uri, callback) },
+                        onExportBackup = { uri, password, callback -> viewModel.exportBackup(uri, password, callback) },
+                        onRestoreBackup = { uri, password, callback -> viewModel.restoreBackup(uri, password, callback) },
                         onBack = { currentScreen = Screen.Home }
                     )
                 }

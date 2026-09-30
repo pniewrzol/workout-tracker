@@ -292,16 +292,16 @@ class WorkoutViewModel(
     }
 
     // Backup & Restore
-    fun exportBackup(uri: Uri, onResult: (Boolean) -> Unit) {
+    fun exportBackup(uri: Uri, password: String? = null, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
-            val result = repository.exportBackup(uri)
+            val result = repository.exportBackup(uri, password)
             onResult(result)
         }
     }
 
-    fun restoreBackup(uri: Uri, onResult: (RestoreResult) -> Unit) {
+    fun restoreBackup(uri: Uri, password: String? = null, onResult: (RestoreResult) -> Unit) {
         viewModelScope.launch {
-            val result = repository.restoreBackup(uri)
+            val result = repository.restoreBackup(uri, password)
             onResult(result)
         }
     }

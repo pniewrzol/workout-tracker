@@ -128,10 +128,27 @@ fun WorkoutActiveScreen(
         map
     }
 
-    val completedCount = remember(sets) { sets.count { it.isCompleted } }
-    val totalCount = sets.size
-    val totalVolume = remember(sets) {
-        sets.filter { it.isCompleted }.sumOf { (it.weightKg * it.reps).toDouble() }.toLong()
+    val isWarmupOrMobilitySession = remember(session.workoutName) {
+        session.workoutName.contains("Rozgrzewka", ignoreCase = true) ||
+        session.workoutName.contains("Mobilizacja", ignoreCase = true)
+    }
+
+    // Warmup and mobility sets are excluded from strength series and volume calculations
+    val statsSets = remember(sets, exerciseMap, isWarmupOrMobilitySession) {
+        if (isWarmupOrMobilitySession) {
+            sets
+        } else {
+            sets.filter { setLog ->
+                val ex = exerciseMap[setLog.exerciseId]
+                ex == null || !ex.isWarmupOrMobility
+            }
+        }
+    }
+
+    val completedCount = remember(statsSets) { statsSets.count { it.isCompleted } }
+    val totalCount = statsSets.size
+    val totalVolume = remember(statsSets) {
+        statsSets.filter { it.isCompleted }.sumOf { (it.weightKg * it.reps).toDouble() }.toLong()
     }
 
     Scaffold(

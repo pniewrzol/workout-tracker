@@ -229,12 +229,12 @@ class WorkoutRepository(
     }
 
     // Backup & Restore
-    suspend fun exportBackup(uri: Uri): Boolean = withContext(Dispatchers.IO) {
-        backupManager.exportBackupToUri(uri)
+    suspend fun exportBackup(uri: Uri, password: String? = null): Boolean = withContext(Dispatchers.IO) {
+        backupManager.exportBackupToUri(uri, password)
     }
 
-    suspend fun restoreBackup(uri: Uri): RestoreResult = withContext(Dispatchers.IO) {
-        backupManager.restoreBackupFromUri(uri)
+    suspend fun restoreBackup(uri: Uri, password: String? = null): RestoreResult = withContext(Dispatchers.IO) {
+        backupManager.restoreBackupFromUri(uri, password)
     }
 
     // Workout Sessions

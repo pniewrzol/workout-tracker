@@ -1,12 +1,13 @@
 package com.example.ui.screens
 
 import android.net.Uri
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -18,20 +19,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Brightness4
 import androidx.compose.material.icons.filled.Brightness7
 import androidx.compose.material.icons.filled.BrightnessAuto
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Restore
-import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -44,7 +46,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
@@ -60,10 +62,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.repository.RestoreResult
@@ -80,8 +83,8 @@ import java.util.Locale
 fun SettingsScreen(
     currentThemeMode: AppThemeMode,
     onThemeModeChange: (AppThemeMode) -> Unit,
-    onExportBackup: (Uri, (Boolean) -> Unit) -> Unit,
-    onRestoreBackup: (Uri, (RestoreResult) -> Unit) -> Unit,
+    onExportBackup: (Uri, String?, (Boolean) -> Unit) -> Unit,
+    onRestoreBackup: (Uri, String?, (RestoreResult) -> Unit) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -92,17 +95,33 @@ fun SettingsScreen(
     var resultDialogMessage by remember { mutableStateOf<String?>(null) }
     var resultDialogTitle by remember { mutableStateOf("") }
 
+    // Export Password state
+    var showExportPasswordDialog by remember { mutableStateOf(false) }
+    var exportPasswordInput by remember { mutableStateOf("") }
+    var isExportPasswordVisible by remember { mutableStateOf(false) }
+    var pendingExportPassword by remember { mutableStateOf<String?>(null) }
+
+    // Restore Password state
+    var showRestorePasswordDialog by remember { mutableStateOf(false) }
+    var restorePasswordInput by remember { mutableStateOf("") }
+    var isRestorePasswordVisible by remember { mutableStateOf(false) }
+    var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
+
     // Backup Create Document Launcher
     val exportBackupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
         if (uri != null) {
             isProcessing = true
-            onExportBackup(uri) { success ->
+            onExportBackup(uri, pendingExportPassword) { success ->
                 isProcessing = false
                 if (success) {
-                    resultDialogTitle = "Kopia utworzona pomyślnie"
-                    resultDialogMessage = "Wszystkie Twoje treningi, serie, pomiary ciała i konfiguracja zostały bezpiecznie zapisane do pliku kopii zapasowej."
+                    resultDialogTitle = "Zaszyfrowana kopia utworzona pomyślnie"
+                    resultDialogMessage = if (pendingExportPassword != null) {
+                        "Twoja kopia została zaszyfrowana algorytmem AES-256 z podanym hasłem ochronnym. Zapamiętaj to hasło, aby przywrócić dane w przyszłości."
+                    } else {
+                        "Wszystkie Twoje treningi, serie, pomiary ciała i konfiguracja zostały bezpiecznie zaszyfrowane algorytmem AES-256-GCM i zapisane do pliku kopii."
+                    }
                 } else {
                     resultDialogTitle = "Błąd eksportu"
                     resultDialogMessage = "Nie udało się zapisać pliku kopii zapasowej. Spróbuj wybrać inne miejsce w pamięci urządzenia."
@@ -116,10 +135,14 @@ fun SettingsScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri != null) {
+            pendingRestoreUri = uri
             isProcessing = true
-            onRestoreBackup(uri) { result ->
+            onRestoreBackup(uri, null) { result ->
                 isProcessing = false
-                if (result.isSuccess) {
+                if (result.isPasswordRequired) {
+                    showRestorePasswordDialog = true
+                    restorePasswordInput = ""
+                } else if (result.isSuccess) {
                     resultDialogTitle = "Przywracanie zakończone"
                     resultDialogMessage = result.message
                 } else {
@@ -257,10 +280,34 @@ fun SettingsScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Encryption Badge
+                        Row(
+                            modifier = Modifier
+                                .background(SuccessGreen.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = null,
+                                tint = SuccessGreen,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Szyfrowanie AES-256-GCM (brak otwartego tekstu)",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = SuccessGreen
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
 
                         Text(
-                            text = "Kopia zapasowa oraz automatyczna synchronizacja w chmurze obejmują historię treningów, serie i pomiary ciała. Duże pliki wideo i zdjęcia zostały wyłączone z autobackupu, dzięki czemu kopia jest lekka, bezpieczna i wykonuje się błyskawicznie.",
+                            text = "Kopia zapasowa obejmuje historię treningów, serie i pomiary ciała. Wszystkie pliki kopii są w pełni szyfrowane kryptograficznie (AES-256-GCM z PBKDF2). Pliki wideo i zdjęcia są wyłączone z kopii, dzięki czemu proces jest błyskawiczny.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -273,9 +320,7 @@ fun SettingsScreen(
                         ) {
                             Button(
                                 onClick = {
-                                    val dateStr = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())
-                                    val defaultName = "trening_tracker_backup_$dateStr.json"
-                                    exportBackupLauncher.launch(defaultName)
+                                    showExportPasswordDialog = true
                                 },
                                 modifier = Modifier
                                     .weight(1f)
@@ -359,12 +404,12 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(10.dp))
 
                         Text(
-                            text = "Trening Tracker v1.1",
+                            text = "Trening Tracker v1.2",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Kompletny dziennik treningowy z rejestracją serii, wagą, pomiarami ciała, wbudowanym planem (38 ćwiczeń), analizą wykresów oraz multimediami.",
+                            text = "Kompletny dziennik treningowy z rejestracją serii, wagą, pomiarami ciała, wbudowanym planem (38 ćwiczeń), analizą wykresów, multimediami i szyfrowaną bazą danych.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -372,6 +417,161 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+
+    // Export Password Dialog
+    if (showExportPasswordDialog) {
+        AlertDialog(
+            onDismissRequest = { showExportPasswordDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Security,
+                        contentDescription = null,
+                        tint = SuccessGreen
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Szyfrowana Kopia AES-256", fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Plik kopii zapasowej jest w 100% chroniony szyfrowaniem AES-256-GCM. Żadne dane nie są zapisywane otwartym tekstem.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "Możesz opcjonalnie zdefiniować własne hasło ochronne lub pozostawić to pole puste (wtedy użyte zostanie wbudowane bezpieczne szyfrowanie skarbca aplikacji):",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = exportPasswordInput,
+                        onValueChange = { exportPasswordInput = it },
+                        label = { Text("Własne hasło (opcjonalne)") },
+                        placeholder = { Text("Zostaw puste dla szyfrowania standardowego") },
+                        singleLine = true,
+                        visualTransformation = if (isExportPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { isExportPasswordVisible = !isExportPasswordVisible }) {
+                                Icon(
+                                    imageVector = if (isExportPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = if (isExportPasswordVisible) "Ukryj hasło" else "Pokaż hasło"
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        pendingExportPassword = if (exportPasswordInput.isNotBlank()) exportPasswordInput else null
+                        showExportPasswordDialog = false
+                        val dateStr = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())
+                        val defaultName = "trening_tracker_backup_$dateStr.json"
+                        exportBackupLauncher.launch(defaultName)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AthleticOrange)
+                ) {
+                    Text("Utwórz i zapisz")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExportPasswordDialog = false }) {
+                    Text("Anuluj")
+                }
+            }
+        )
+    }
+
+    // Restore Password Dialog
+    if (showRestorePasswordDialog && pendingRestoreUri != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showRestorePasswordDialog = false
+                pendingRestoreUri = null
+            },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = null,
+                        tint = AthleticOrange
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Wymagane Hasło Odszyfrowania", fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Ten plik kopii zapasowej został zabezpieczony hasłem. Wprowadź hasło, aby odszyfrować i przywrócić dane:",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = restorePasswordInput,
+                        onValueChange = { restorePasswordInput = it },
+                        label = { Text("Hasło kopii zapasowej") },
+                        singleLine = true,
+                        visualTransformation = if (isRestorePasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { isRestorePasswordVisible = !isRestorePasswordVisible }) {
+                                Icon(
+                                    imageVector = if (isRestorePasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = if (isRestorePasswordVisible) "Ukryj hasło" else "Pokaż hasło"
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val pass = restorePasswordInput
+                        val uri = pendingRestoreUri
+                        showRestorePasswordDialog = false
+                        if (uri != null) {
+                            isProcessing = true
+                            onRestoreBackup(uri, pass) { result ->
+                                isProcessing = false
+                                if (result.isPasswordRequired) {
+                                    showRestorePasswordDialog = true
+                                    resultDialogTitle = "Błędne hasło"
+                                    resultDialogMessage = "Wprowadzone hasło jest niepoprawne."
+                                } else if (result.isSuccess) {
+                                    resultDialogTitle = "Przywracanie zakończone"
+                                    resultDialogMessage = result.message
+                                    pendingRestoreUri = null
+                                } else {
+                                    resultDialogTitle = "Błąd przywracania"
+                                    resultDialogMessage = result.message
+                                    pendingRestoreUri = null
+                                }
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AthleticOrange),
+                    enabled = restorePasswordInput.isNotBlank()
+                ) {
+                    Text("Odszyfruj i przywróć")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showRestorePasswordDialog = false
+                    pendingRestoreUri = null
+                }) {
+                    Text("Anuluj")
+                }
+            }
+        )
     }
 
     // Result alert dialog

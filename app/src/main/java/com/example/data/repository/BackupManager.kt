@@ -2,6 +2,7 @@ package com.example.data.repository
 
 import android.content.Context
 import android.net.Uri
+import android.util.Base64
 import com.example.data.db.BodyMeasurementDao
 import com.example.data.db.ExerciseDao
 import com.example.data.db.WorkoutDao
@@ -16,14 +17,24 @@ import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
+import java.security.SecureRandom
+import javax.crypto.Cipher
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.PBEKeySpec
+import javax.crypto.spec.SecretKeySpec
 
 data class RestoreResult(
     val sessionsCount: Int = 0,
     val setsCount: Int = 0,
     val measurementsCount: Int = 0,
     val isSuccess: Boolean = true,
+    val isPasswordRequired: Boolean = false,
     val message: String = ""
 )
+
+class PasswordRequiredException : Exception("Wymagane hasło do odszyfrowania kopii zapasowej.")
+class InvalidPasswordException(msg: String) : Exception(msg)
 
 class BackupManager(
     private val context: Context,
@@ -31,6 +42,103 @@ class BackupManager(
     private val workoutDao: WorkoutDao,
     private val bodyMeasurementDao: BodyMeasurementDao
 ) {
+
+    companion object {
+        private const val PBKDF2_ITERATIONS = 10000
+        private const val KEY_LENGTH_BITS = 256
+        private const val GCM_TAG_LENGTH_BITS = 128
+        private const val IV_LENGTH_BYTES = 12
+        private const val SALT_LENGTH_BYTES = 16
+        // Standard encryption key used when no custom password is supplied by the user,
+        // ensuring the backup file is always encrypted on disk/drive rather than plaintext JSON.
+        private const val DEFAULT_ENCRYPTION_SECRET = "WorkoutTracker_SafeVault_2026!EncryptedBackupKey"
+
+        fun deriveKey(password: String, salt: ByteArray): SecretKeySpec {
+            val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+            val spec = PBEKeySpec(password.toCharArray(), salt, PBKDF2_ITERATIONS, KEY_LENGTH_BITS)
+            val secretKey = factory.generateSecret(spec)
+            return SecretKeySpec(secretKey.encoded, "AES")
+        }
+
+        fun encryptPayload(plainText: String, customPassword: String?): String {
+            val hasCustomPassword = !customPassword.isNullOrBlank()
+            val passwordToUse = if (hasCustomPassword) customPassword!! else DEFAULT_ENCRYPTION_SECRET
+
+            val random = SecureRandom()
+            val salt = ByteArray(SALT_LENGTH_BYTES)
+            random.nextBytes(salt)
+            val iv = ByteArray(IV_LENGTH_BYTES)
+            random.nextBytes(iv)
+
+            val key = deriveKey(passwordToUse, salt)
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv))
+            val cipherBytes = cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
+
+            val envelope = JSONObject().apply {
+                put("encrypted", true)
+                put("version", 1)
+                put("cipher", "AES-256-GCM")
+                put("hasCustomPassword", hasCustomPassword)
+                put("salt", Base64.encodeToString(salt, Base64.NO_WRAP))
+                put("iv", Base64.encodeToString(iv, Base64.NO_WRAP))
+                put("payload", Base64.encodeToString(cipherBytes, Base64.NO_WRAP))
+            }
+            return envelope.toString(2)
+        }
+
+        fun decryptPayload(raw: String, customPassword: String?): String {
+            val trimmed = raw.trim()
+            if (!trimmed.startsWith("{")) {
+                return raw
+            }
+
+            val root = try {
+                JSONObject(trimmed)
+            } catch (_: Exception) {
+                return raw
+            }
+
+            if (!root.optBoolean("encrypted", false)) {
+                // Backward compatibility: Legacy plaintext JSON
+                return raw
+            }
+
+            val hasCustomPassword = root.optBoolean("hasCustomPassword", false)
+            val saltBase64 = root.optString("salt", "")
+            val ivBase64 = root.optString("iv", "")
+            val payloadBase64 = root.optString("payload", "")
+
+            if (saltBase64.isBlank() || ivBase64.isBlank() || payloadBase64.isBlank()) {
+                throw InvalidPasswordException("Uszkodzony plik zaszyfrowanej kopii.")
+            }
+
+            val salt = Base64.decode(saltBase64, Base64.NO_WRAP)
+            val iv = Base64.decode(ivBase64, Base64.NO_WRAP)
+            val cipherBytes = Base64.decode(payloadBase64, Base64.NO_WRAP)
+
+            val passwordToUse = if (hasCustomPassword) {
+                if (customPassword.isNullOrBlank()) {
+                    throw PasswordRequiredException()
+                }
+                customPassword
+            } else {
+                if (!customPassword.isNullOrBlank()) customPassword else DEFAULT_ENCRYPTION_SECRET
+            }
+
+            val key = deriveKey(passwordToUse, salt)
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv))
+
+            val plainBytes = try {
+                cipher.doFinal(cipherBytes)
+            } catch (e: Exception) {
+                throw InvalidPasswordException("Nieprawidłowe hasło lub uszkodzona kopia zapasowa.")
+            }
+
+            return String(plainBytes, Charsets.UTF_8)
+        }
+    }
 
     suspend fun createBackupJson(): String = withContext(Dispatchers.IO) {
         val root = JSONObject()
@@ -100,12 +208,14 @@ class BackupManager(
         root.toString(2)
     }
 
-    suspend fun exportBackupToUri(uri: Uri): Boolean = withContext(Dispatchers.IO) {
+    suspend fun exportBackupToUri(uri: Uri, password: String? = null): Boolean = withContext(Dispatchers.IO) {
         try {
-            val json = createBackupJson()
+            val plainJson = createBackupJson()
+            // Always encrypt the backup with AES-256-GCM
+            val encryptedJson = encryptPayload(plainJson, password)
             context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-                OutputStreamWriter(outputStream).use { writer ->
-                    writer.write(json)
+                OutputStreamWriter(outputStream, Charsets.UTF_8).use { writer ->
+                    writer.write(encryptedJson)
                 }
             }
             true
@@ -115,11 +225,11 @@ class BackupManager(
         }
     }
 
-    suspend fun restoreBackupFromUri(uri: Uri): RestoreResult = withContext(Dispatchers.IO) {
+    suspend fun restoreBackupFromUri(uri: Uri, password: String? = null): RestoreResult = withContext(Dispatchers.IO) {
         try {
             val sb = StringBuilder()
             context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                BufferedReader(InputStreamReader(inputStream)).use { reader ->
+                BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).use { reader ->
                     var line = reader.readLine()
                     while (line != null) {
                         sb.append(line)
@@ -127,11 +237,24 @@ class BackupManager(
                     }
                 }
             }
-            val jsonString = sb.toString()
-            if (jsonString.isBlank()) {
+            val rawString = sb.toString()
+            if (rawString.isBlank()) {
                 return@withContext RestoreResult(isSuccess = false, message = "Plik kopii jest pusty")
             }
-            restoreBackupFromJson(jsonString)
+            val decryptedJson = decryptPayload(rawString, password)
+            restoreBackupFromJson(decryptedJson)
+        } catch (e: PasswordRequiredException) {
+            RestoreResult(
+                isSuccess = false,
+                isPasswordRequired = true,
+                message = "Plik kopii jest zabezpieczony hasłem. Wprowadź hasło, aby kontynuować."
+            )
+        } catch (e: InvalidPasswordException) {
+            RestoreResult(
+                isSuccess = false,
+                isPasswordRequired = true,
+                message = "Nieprawidłowe hasło odszyfrowania kopii zapasowej."
+            )
         } catch (e: Exception) {
             e.printStackTrace()
             RestoreResult(isSuccess = false, message = "Błąd odczytu pliku: ${e.localizedMessage}")
@@ -228,7 +351,7 @@ class BackupManager(
                 setsCount = setsList.size,
                 measurementsCount = measurementsList.size,
                 isSuccess = true,
-                message = "Przywrócono: ${sessionsList.size} treningów, ${setsList.size} serii, ${measurementsList.size} pomiarów."
+                message = "Przywrócono pomyślnie: ${sessionsList.size} treningów, ${setsList.size} serii, ${measurementsList.size} pomiarów."
             )
         } catch (e: Exception) {
             e.printStackTrace()

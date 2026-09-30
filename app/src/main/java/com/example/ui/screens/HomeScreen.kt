@@ -85,10 +85,7 @@ fun HomeScreen(
         completedSessions.filter { it.isMainWorkout }.map { it.id }.toSet()
     }
     val warmupOrMobilityExerciseIds = remember(allExercises) {
-        allExercises.filter { 
-            it.section.contains("Rozgrzewka", ignoreCase = true) || 
-            it.section.contains("Mobilizacja", ignoreCase = true) 
-        }.map { it.id }.toSet()
+        allExercises.filter { it.isWarmupOrMobility }.map { it.id }.toSet()
     }
 
     // Exclude warmup and mobility sets and sessions from total series count and total volume calculation

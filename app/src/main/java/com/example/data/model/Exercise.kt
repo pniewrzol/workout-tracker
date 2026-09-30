@@ -75,4 +75,14 @@ data class Exercise(
     val isTime: Boolean get() = getEffectiveMeasurementType() == ExerciseType.TIME
     val isBodyweight: Boolean get() = getEffectiveMeasurementType() == ExerciseType.BODYWEIGHT_REPS
     val isWeightAndReps: Boolean get() = getEffectiveMeasurementType() == ExerciseType.WEIGHT_AND_REPS
+
+    val isWarmupOrMobility: Boolean
+        get() = section.contains("Rozgrzewka", ignoreCase = true) ||
+                section.contains("Mobilizacja", ignoreCase = true) ||
+                section.contains("Warmup", ignoreCase = true) ||
+                section.contains("Mobility", ignoreCase = true) ||
+                code.startsWith("R.", ignoreCase = true) ||
+                code.startsWith("M.", ignoreCase = true) ||
+                code.startsWith("1.", ignoreCase = true) ||
+                code.startsWith("2.", ignoreCase = true)
 }

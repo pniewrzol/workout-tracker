@@ -194,8 +194,18 @@ fun HistorySessionCard(
     val dateStr = SimpleDateFormat("dd MMMM yyyy, HH:mm", Locale("pl", "PL"))
         .format(Date(session.startTime))
     val durationMin = session.durationSeconds / 60
-    val totalVolume = sessionSets.sumOf { (it.weightKg * it.reps).toDouble() }.toLong()
-    val setsCount = sessionSets.size
+
+    // Exclude warmup and mobility sets from strength series count and volume for main workouts
+    val isWarmupOrMobilitySession = !session.isMainWorkout
+    val mainSets = remember(sessionSets, exerciseMap) {
+        sessionSets.filter { setLog ->
+            val ex = exerciseMap[setLog.exerciseId]
+            ex == null || !ex.isWarmupOrMobility
+        }
+    }
+    val effectiveSets = if (isWarmupOrMobilitySession) sessionSets else mainSets
+    val totalVolume = mainSets.sumOf { (it.weightKg * it.reps).toDouble() }.toLong()
+    val setsCount = effectiveSets.size
 
     val groupedByExercise = remember(sessionSets) {
         sessionSets.groupBy { it.exerciseId }
