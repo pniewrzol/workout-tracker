@@ -6,6 +6,7 @@ import com.example.data.db.AppDatabase
 import com.example.data.repository.WorkoutRepository
 import androidx.room.Room
 import com.example.data.model.BodyMeasurement
+import com.example.data.model.WorkoutSetLog
 import com.example.data.model.InitialWorkoutData
 import com.example.data.repository.RestoreResult
 import org.json.JSONArray
@@ -76,58 +77,99 @@ class ExampleRobolectricTest {
   fun `distance and time exercises are categorized correctly`() {
     val exercises = InitialWorkoutData.defaultExercises
 
-    val rowErg = exercises.first { it.code == "1.1" }
+    val rowErg = exercises.first { it.code == "R.1" }
     assertTrue(rowErg.isDistanceBased())
     assertEquals(com.example.data.model.ExerciseType.DISTANCE, rowErg.getEffectiveMeasurementType())
 
-    val airBike = exercises.first { it.code == "1.2" }
+    val airBike = exercises.first { it.code == "R.2" }
     assertTrue(airBike.isDistanceBased())
     assertEquals(com.example.data.model.ExerciseType.DISTANCE, airBike.getEffectiveMeasurementType())
 
-    val sidePlank = exercises.first { it.code == "3.6b" }
+    val sidePlank = exercises.first { it.code == "A.6b" }
     assertTrue(sidePlank.isTimeBased())
     assertEquals(com.example.data.model.ExerciseType.TIME, sidePlank.getEffectiveMeasurementType())
 
-    val stairs = exercises.first { it.code == "4.7" }
+    val stairs = exercises.first { it.code == "B.7" }
     assertTrue(stairs.isTimeBased())
     assertEquals(com.example.data.model.ExerciseType.TIME, stairs.getEffectiveMeasurementType())
 
-    val farmersWalk = exercises.first { it.code == "5.1a" }
+    val farmersWalk = exercises.first { it.code == "C.1a" }
     assertTrue(farmersWalk.isDistanceBased())
     assertEquals(com.example.data.model.ExerciseType.DISTANCE, farmersWalk.getEffectiveMeasurementType())
 
-    val chinUpHold = exercises.first { it.code == "5.3" }
+    val chinUpHold = exercises.first { it.code == "C.3" }
     assertTrue(chinUpHold.isTimeBased())
     assertEquals(com.example.data.model.ExerciseType.TIME, chinUpHold.getEffectiveMeasurementType())
 
-    val standardEx = exercises.first { it.code == "3.4" }
+    val standardEx = exercises.first { it.code == "A.4" }
     assertEquals(com.example.data.model.ExerciseType.WEIGHT_AND_REPS, standardEx.getEffectiveMeasurementType())
 
     // Crucial check: verify that ONLY the 3 distance exercises are distance-based
     val distanceExercises = exercises.filter { it.isDistanceBased() }
     assertEquals(3, distanceExercises.size)
-    assertEquals(setOf("1.1", "1.2", "5.1a"), distanceExercises.map { it.code }.toSet())
+    assertEquals(setOf("R.1", "R.2", "C.1a"), distanceExercises.map { it.code }.toSet())
 
     // Crucial check: verify that ONLY the 3 time exercises are time-based
     val timeExercises = exercises.filter { it.isTimeBased() }
     assertEquals(3, timeExercises.size)
-    assertEquals(setOf("3.6b", "4.7", "5.3"), timeExercises.map { it.code }.toSet())
+    assertEquals(setOf("A.6b", "B.7", "C.3"), timeExercises.map { it.code }.toSet())
 
     // Exercises with bodyweight are categorized as BODYWEIGHT_REPS (reps only)
-    val worldsGreatest = exercises.first { it.code == "2.2" }
+    val worldsGreatest = exercises.first { it.code == "M.2" }
     assertEquals(com.example.data.model.ExerciseType.BODYWEIGHT_REPS, worldsGreatest.getEffectiveMeasurementType())
     assertTrue(worldsGreatest.isBodyweightBased())
     org.junit.Assert.assertFalse(worldsGreatest.isDistanceBased())
 
-    val couchStretch = exercises.first { it.code == "2.5" }
+    val couchStretch = exercises.first { it.code == "M.5" }
     assertEquals(com.example.data.model.ExerciseType.BODYWEIGHT_REPS, couchStretch.getEffectiveMeasurementType())
     assertTrue(couchStretch.isBodyweightBased())
     org.junit.Assert.assertFalse(couchStretch.isDistanceBased())
 
-    val plateGoodMorning = exercises.first { it.code == "2.7" }
+    // 2.8 / M.8 Cossack squat is strictly bodyweight reps only
+    val cossackSquat = exercises.first { it.code == "M.8" }
+    assertEquals(com.example.data.model.ExerciseType.BODYWEIGHT_REPS, cossackSquat.getEffectiveMeasurementType())
+    assertTrue(cossackSquat.isBodyweightBased())
+    org.junit.Assert.assertFalse(cossackSquat.isDistanceBased())
+    org.junit.Assert.assertFalse(cossackSquat.isTimeBased())
+
+    val plateGoodMorning = exercises.first { it.code == "M.7" }
     assertEquals(com.example.data.model.ExerciseType.WEIGHT_AND_REPS, plateGoodMorning.getEffectiveMeasurementType())
     org.junit.Assert.assertFalse(plateGoodMorning.isTimeBased())
     org.junit.Assert.assertFalse(plateGoodMorning.isBodyweightBased())
+  }
+
+  @Test
+  fun `warmup and mobility do not count as main workouts`() {
+    val mainA = com.example.data.model.WorkoutSession(id = 1, workoutName = "Trening A")
+    val mainB = com.example.data.model.WorkoutSession(id = 2, workoutName = "Trening B")
+    val mainC = com.example.data.model.WorkoutSession(id = 3, workoutName = "Trening C")
+    val warmupMobility = com.example.data.model.WorkoutSession(id = 4, workoutName = "Rozgrzewka i Mobilizacja")
+
+    assertTrue(mainA.isMainWorkout)
+    assertTrue(mainB.isMainWorkout)
+    assertTrue(mainC.isMainWorkout)
+    org.junit.Assert.assertFalse(warmupMobility.isMainWorkout)
+
+    // Test volume and sets filtering
+    val completedSessions = listOf(mainA, warmupMobility)
+    val mainSessionIds = completedSessions.filter { it.isMainWorkout }.map { it.id }.toSet()
+
+    val warmupExercise = InitialWorkoutData.defaultExercises.first { it.code == "R.1" }.copy(id = 101L)
+    val mainExercise = InitialWorkoutData.defaultExercises.first { it.code == "A.4" }.copy(id = 202L)
+
+    val setFromMain = WorkoutSetLog(sessionId = 1, exerciseId = mainExercise.id, setNumber = 1, weightKg = 50f, reps = 10, isCompleted = true)
+    val setFromWarmup = WorkoutSetLog(sessionId = 4, exerciseId = warmupExercise.id, setNumber = 1, weightKg = 0f, distanceMeters = 500f, reps = 0, isCompleted = true)
+
+    val allCompletedSets = listOf(setFromMain, setFromWarmup)
+    val warmupOrMobilityExerciseIds = setOf(warmupExercise.id)
+
+    val mainWorkoutCompletedSets = allCompletedSets.filter { 
+        it.sessionId in mainSessionIds && it.exerciseId !in warmupOrMobilityExerciseIds 
+    }
+
+    assertEquals(1, mainWorkoutCompletedSets.size)
+    val totalVolumeKg = mainWorkoutCompletedSets.sumOf { (it.weightKg * it.reps).toDouble() }.toLong()
+    assertEquals(500L, totalVolumeKg)
   }
 
   @Test
@@ -189,7 +231,7 @@ class ExampleRobolectricTest {
     )
 
     repo.checkAndSeedExercises()
-    val militaryPress = db.exerciseDao().getExerciseByCode("3.4")!!
+    val militaryPress = db.exerciseDao().getExerciseByCode("A.4")!!
 
     // Session 1: User completes military press with 50kg, 52.5kg, 52.5kg, 55kg
     val s1Id = repo.startWorkoutSession("Trening A", listOf(militaryPress))

@@ -94,6 +94,7 @@ fun ExerciseDetailScreen(
     completedSets: List<WorkoutSetLog>,
     chartPoints: List<ChartPoint>,
     onAddMedia: (uri: Uri, isVideo: Boolean, caption: String) -> Unit,
+    onAddMultipleMedia: (uris: List<Uri>, isVideo: Boolean) -> Unit = { _, _ -> },
     onDeleteMedia: (ExerciseMedia) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
@@ -114,6 +115,14 @@ fun ExerciseDetailScreen(
         if (uri != null) {
             pendingMediaUri = uri
             showAddCaptionDialog = true
+        }
+    }
+
+    val multiplePhotosPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            onAddMultipleMedia(uris, false)
         }
     }
 
@@ -263,6 +272,12 @@ fun ExerciseDetailScreen(
                             )
                         }
 
+                        Text(
+                            text = "Możesz dodać nieograniczoną liczbę zdjęć i nagrań wideo do każdego ćwiczenia (np. z różnych kątów i etapów progresu).",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
                         Spacer(modifier = Modifier.height(10.dp))
 
                         // Media Add Buttons
@@ -272,14 +287,13 @@ fun ExerciseDetailScreen(
                         ) {
                             FilledTonalButton(
                                 onClick = {
-                                    pendingIsVideo = false
-                                    mediaPickerLauncher.launch(
+                                    multiplePhotosPickerLauncher.launch(
                                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                     )
                                 },
                                 modifier = Modifier
                                     .weight(1f)
-                                    .testTag("add_photo_button"),
+                                    .testTag("add_multiple_photos_button"),
                                 shape = RoundedCornerShape(10.dp)
                             ) {
                                 Icon(
@@ -288,7 +302,7 @@ fun ExerciseDetailScreen(
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Dodaj zdjęcie", fontSize = 13.sp)
+                                Text("Wybierz zdjęcia", fontSize = 12.sp)
                             }
 
                             FilledTonalButton(
@@ -309,7 +323,7 @@ fun ExerciseDetailScreen(
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Dodaj wideo", fontSize = 13.sp)
+                                Text("Dodaj wideo", fontSize = 12.sp)
                             }
                         }
 

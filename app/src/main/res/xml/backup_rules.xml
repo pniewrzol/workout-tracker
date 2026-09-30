@@ -6,8 +6,6 @@
    See https://developer.android.com/about/versions/12/backup-restore
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <!-- Exclude user photos and videos from auto backup to keep backups lightweight -->
+    <exclude domain="file" path="exercise_media" />
 </full-backup-content>

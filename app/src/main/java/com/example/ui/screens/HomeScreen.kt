@@ -81,11 +81,29 @@ fun HomeScreen(
     onExerciseClick: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val totalVolumeKg = remember(allCompletedSets) {
-        allCompletedSets.sumOf { (it.weightKg * it.reps).toDouble() }.toLong()
+    val mainSessionIds = remember(completedSessions) {
+        completedSessions.filter { it.isMainWorkout }.map { it.id }.toSet()
     }
-    val totalWorkoutsCount = completedSessions.size
-    val totalSetsCount = remember(allCompletedSets) { allCompletedSets.size }
+    val warmupOrMobilityExerciseIds = remember(allExercises) {
+        allExercises.filter { 
+            it.section.contains("Rozgrzewka", ignoreCase = true) || 
+            it.section.contains("Mobilizacja", ignoreCase = true) 
+        }.map { it.id }.toSet()
+    }
+
+    // Exclude warmup and mobility sets and sessions from total series count and total volume calculation
+    val mainWorkoutCompletedSets = remember(allCompletedSets, mainSessionIds, warmupOrMobilityExerciseIds) {
+        allCompletedSets.filter { 
+            it.sessionId in mainSessionIds && it.exerciseId !in warmupOrMobilityExerciseIds 
+        }
+    }
+
+    val totalVolumeKg = remember(mainWorkoutCompletedSets) {
+        mainWorkoutCompletedSets.sumOf { (it.weightKg * it.reps).toDouble() }.toLong()
+    }
+    val mainWorkouts = remember(completedSessions) { completedSessions.filter { it.isMainWorkout } }
+    val totalWorkoutsCount = mainWorkouts.size
+    val totalSetsCount = mainWorkoutCompletedSets.size
 
     LazyColumn(
         modifier = modifier

@@ -37,7 +37,36 @@ class WorkoutRepository(
     val backupManager = BackupManager(context, exerciseDao, workoutDao, bodyMeasurementDao)
 
     suspend fun checkAndSeedExercises() = withContext(Dispatchers.IO) {
-        // 1. Deduplicate any existing exercises in the database (handles instances where exercises were doubled)
+        // 1. Migrate any existing old codes (e.g. "1.1", "2.8", "3.5a") to new codes ("R.1", "M.8", "A.5a")
+        val oldToNewCodeMap = mapOf(
+            "1.1" to "R.1", "1.2" to "R.2",
+            "2.1" to "M.1", "2.2" to "M.2", "2.3" to "M.3", "2.4" to "M.4", "2.5" to "M.5",
+            "2.6" to "M.6", "2.7" to "M.7", "2.8" to "M.8", "2.9" to "M.9", "2.10" to "M.10",
+            "3.1" to "A.1", "3.2" to "A.2", "3.3" to "A.3", "3.4" to "A.4", "3.5a" to "A.5a", "3.5b" to "A.5b", "3.6a" to "A.6a", "3.6b" to "A.6b",
+            "4.1" to "B.1", "4.2" to "B.2", "4.3" to "B.3", "4.4" to "B.4", "4.5a" to "B.5a", "4.5b" to "B.5b", "4.6a" to "B.6a", "4.6b" to "B.6b", "4.7" to "B.7",
+            "5.1a" to "C.1a", "5.1b" to "C.1b", "5.2" to "C.2", "5.3" to "C.3", "5.4a" to "C.4a", "5.4b" to "C.4b", "5.5a" to "C.5a", "5.5b" to "C.5b", "5.6" to "C.6"
+        )
+        val initialExisting = exerciseDao.getAllExercisesList()
+        for (ex in initialExisting) {
+            val mappedCode = oldToNewCodeMap[ex.code]
+            val isCossack = ex.name.contains("cossack", ignoreCase = true) || ex.code == "2.8" || ex.code == "M.8"
+            if (mappedCode != null || isCossack) {
+                val newCode = mappedCode ?: "M.8"
+                val updatedEx = if (isCossack) {
+                    ex.copy(
+                        code = "M.8",
+                        name = "Cossack squat (knee dominant)",
+                        equipment = "Bodyweight",
+                        measurementType = "BODYWEIGHT_REPS"
+                    )
+                } else {
+                    ex.copy(code = newCode)
+                }
+                exerciseDao.updateExercise(updatedEx)
+            }
+        }
+
+        // 2. Deduplicate any existing exercises in the database
         val existingExercises = exerciseDao.getAllExercisesList()
         val grouped = existingExercises.groupBy { if (it.code.isNotBlank()) it.code else it.name }
         for ((_, group) in grouped) {
@@ -51,24 +80,34 @@ class WorkoutRepository(
             }
         }
 
-        // 2. Fetch fresh list after deduplication
+        // 3. Fetch fresh list after deduplication
         val currentExercises = exerciseDao.getAllExercisesList()
         val currentByCode = currentExercises.associateBy { it.code }
 
-        // 3. For each default exercise: insert if missing, update details if present
+        // 4. For each default exercise: insert if missing, update details if present
         for (defEx in InitialWorkoutData.defaultExercises) {
             val existing = currentByCode[defEx.code]
             if (existing == null) {
                 exerciseDao.insertExercise(defEx)
             } else {
-                exerciseDao.updateExerciseDetailsByCode(
-                    code = defEx.code,
-                    name = defEx.name,
-                    targetReps = defEx.targetReps,
-                    measurementType = defEx.measurementType,
-                    cues = defEx.cues,
-                    instructions = defEx.instructions,
-                    equipment = defEx.equipment
+                exerciseDao.updateExercise(
+                    existing.copy(
+                        name = defEx.name,
+                        targetReps = defEx.targetReps,
+                        targetSets = defEx.targetSets,
+                        measurementType = defEx.measurementType,
+                        cues = defEx.cues,
+                        instructions = defEx.instructions,
+                        equipment = defEx.equipment,
+                        section = defEx.section,
+                        bodyPart = defEx.bodyPart,
+                        primaryMuscles = defEx.primaryMuscles,
+                        secondaryMuscles = defEx.secondaryMuscles,
+                        restDisplay = defEx.restDisplay,
+                        restSeconds = defEx.restSeconds,
+                        tempo = defEx.tempo,
+                        rir = defEx.rir
+                    )
                 )
             }
         }
@@ -362,6 +401,16 @@ class WorkoutRepository(
                 notes = notes
             )
             workoutDao.updateSession(updated)
+
+            // If the user didn't toggle individual checkmarks but saved the workout,
+            // mark all sets with valid data as completed so their progressive overload
+            // is safely preserved and carried over to future workouts.
+            val sets = workoutDao.getSetsForSessionDirect(sessionId)
+            val hasAnyCompleted = sets.any { it.isCompleted }
+            if (!hasAnyCompleted && sets.isNotEmpty()) {
+                val autoCompleted = sets.map { it.copy(isCompleted = true, timestamp = now) }
+                workoutDao.insertSetLogs(autoCompleted)
+            }
         }
     }
 

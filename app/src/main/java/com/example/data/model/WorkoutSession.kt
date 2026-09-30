@@ -12,4 +12,8 @@ data class WorkoutSession(
     val endTime: Long = 0, // 0 means currently ongoing
     val notes: String = "",
     val durationSeconds: Long = 0
-)
+) {
+    val isMainWorkout: Boolean
+        get() = !workoutName.contains("Rozgrzewka", ignoreCase = true) &&
+                !workoutName.contains("Mobilizacja", ignoreCase = true)
+}

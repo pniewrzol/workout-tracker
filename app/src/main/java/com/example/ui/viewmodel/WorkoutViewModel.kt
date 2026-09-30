@@ -236,6 +236,14 @@ class WorkoutViewModel(
         }
     }
 
+    fun addMultipleMedia(uris: List<Uri>, isVideo: Boolean, exerciseId: Long) {
+        viewModelScope.launch {
+            for (uri in uris) {
+                repository.saveMediaFile(uri, isVideo, exerciseId, "")
+            }
+        }
+    }
+
     fun deleteMedia(media: ExerciseMedia) {
         viewModelScope.launch {
             repository.deleteMedia(media)

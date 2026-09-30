@@ -5,7 +5,7 @@ object InitialWorkoutData {
         // Rozgrzewka (Warmup)
         Exercise(
             section = "Rozgrzewka",
-            code = "1.1",
+            code = "R.1",
             name = "Row erg",
             targetSets = 1,
             targetReps = "500m",
@@ -23,7 +23,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Rozgrzewka",
-            code = "1.2",
+            code = "R.2",
             name = "Air bike",
             targetSets = 1,
             targetReps = "500m",
@@ -43,7 +43,7 @@ object InitialWorkoutData {
         // Mobilizacja (Mobility & Activation)
         Exercise(
             section = "Mobilizacja",
-            code = "2.1",
+            code = "M.1",
             name = "Move stick from front to back",
             targetSets = 1,
             targetReps = "10",
@@ -60,7 +60,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Mobilizacja",
-            code = "2.2",
+            code = "M.2",
             name = "World's greatest stretch",
             targetSets = 1,
             targetReps = "12 (na stronę, razem 24)",
@@ -77,7 +77,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Mobilizacja",
-            code = "2.3",
+            code = "M.3",
             name = "Cable straight-arm shoulder pull",
             targetSets = 1,
             targetReps = "12",
@@ -94,7 +94,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Mobilizacja",
-            code = "2.4",
+            code = "M.4",
             name = "Cat-cow pose",
             targetSets = 1,
             targetReps = "12 (2s pauza góra, 2s dół)",
@@ -111,7 +111,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Mobilizacja",
-            code = "2.5",
+            code = "M.5",
             name = "Couch stretch + good morning",
             targetSets = 1,
             targetReps = "12 (na stronę, razem 24)",
@@ -128,7 +128,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Mobilizacja",
-            code = "2.6",
+            code = "M.6",
             name = "Lying knee to chest",
             targetSets = 1,
             targetReps = "24 (2s hold)",
@@ -145,7 +145,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Mobilizacja",
-            code = "2.7",
+            code = "M.7",
             name = "Plate good morning (hip dominant)",
             targetSets = 1,
             targetReps = "12 (50% proper series)",
@@ -162,8 +162,8 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Mobilizacja",
-            code = "2.8",
-            name = "DB cossack squat (knee dominant)",
+            code = "M.8",
+            name = "Cossack squat (knee dominant)",
             targetSets = 1,
             targetReps = "20 (50% proper series)",
             restDisplay = "bez przerwy",
@@ -171,15 +171,16 @@ object InitialWorkoutData {
             tempo = "-",
             rir = "-",
             bodyPart = "Upper legs",
-            equipment = "Dumbbell",
+            equipment = "Bodyweight",
             primaryMuscles = "Quads, Glutes",
             secondaryMuscles = "Adductors, Hamstrings, Calves",
-            cues = "50% normalnej serii, aktywacja, nie zmęczenie",
-            instructions = "1) Stań w szerokim rozkroku, hantle trzymaj przy klatce lub opuszczone.\n2) Przenieś ciężar ciała na jedną nogę, uginając ją w kolanie, druga noga zostaje prosta.\n3) Zejdź jak najniżej, pięta zgiętej nogi na podłodze.\n4) Wróć i powtórz w drugą stronę."
+            cues = "50% normalnej serii, aktywacja, nie zmęczenie, z masą ciała bez obciążenia",
+            instructions = "1) Stań w szerokim rozkroku z masą ciała.\n2) Przenieś ciężar ciała na jedną nogę, uginając ją w kolanie, druga noga zostaje prosta.\n3) Zejdź jak najniżej pozwala mobilność, pięta zgiętej nogi na podłodze.\n4) Wróć i powtórz w drugą stronę.",
+            measurementType = "BODYWEIGHT_REPS"
         ),
         Exercise(
             section = "Mobilizacja",
-            code = "2.9",
+            code = "M.9",
             name = "Plyometric push-ups (push horyzontalny)",
             targetSets = 1,
             targetReps = "12 (50% proper series)",
@@ -196,7 +197,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Mobilizacja",
-            code = "2.10",
+            code = "M.10",
             name = "90/90 switches and good morning",
             targetSets = 1,
             targetReps = "20",
@@ -215,7 +216,7 @@ object InitialWorkoutData {
         // Trening A
         Exercise(
             section = "Trening A",
-            code = "3.1",
+            code = "A.1",
             name = "Powerband chin ups",
             targetSets = 4,
             targetReps = "10,9,8,7",
@@ -232,7 +233,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening A",
-            code = "3.2",
+            code = "A.2",
             name = "Dips",
             targetSets = 4,
             targetReps = "10,9,8,7",
@@ -249,7 +250,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening A",
-            code = "3.3",
+            code = "A.3",
             name = "DB reverse lunges",
             targetSets = 4,
             targetReps = "10,9,8,7",
@@ -266,7 +267,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening A",
-            code = "3.4",
+            code = "A.4",
             name = "Barbell military press",
             targetSets = 4,
             targetReps = "10,9,8,7",
@@ -283,7 +284,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening A",
-            code = "3.5a",
+            code = "A.5a",
             name = "Bench straight barbell french press",
             targetSets = 3,
             targetReps = "10,9,8",
@@ -300,7 +301,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening A",
-            code = "3.5b",
+            code = "A.5b",
             name = "Standing neutral grip DB biceps curl",
             targetSets = 3,
             targetReps = "10,9,8",
@@ -317,7 +318,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening A",
-            code = "3.6a",
+            code = "A.6a",
             name = "Dead bug",
             targetSets = 4,
             targetReps = "20,18,16,14",
@@ -334,7 +335,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening A",
-            code = "3.6b",
+            code = "A.6b",
             name = "Forearm side plank",
             targetSets = 4,
             targetReps = "35s,30s,25s,20s",
@@ -354,7 +355,7 @@ object InitialWorkoutData {
         // Trening B
         Exercise(
             section = "Trening B",
-            code = "4.1",
+            code = "B.1",
             name = "Semi sumo deadlift",
             targetSets = 4,
             targetReps = "10,9,8,7",
@@ -371,7 +372,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening B",
-            code = "4.2",
+            code = "B.2",
             name = "Incline chest hammer",
             targetSets = 4,
             targetReps = "10,9,8,7",
@@ -388,7 +389,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening B",
-            code = "4.3",
+            code = "B.3",
             name = "Knee on bench one arm dumbbell row",
             targetSets = 4,
             targetReps = "10,9,8,7",
@@ -405,7 +406,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening B",
-            code = "4.4",
+            code = "B.4",
             name = "Sitting lateral raises machine",
             targetSets = 4,
             targetReps = "10,9,8,7",
@@ -422,7 +423,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening B",
-            code = "4.5a",
+            code = "B.5a",
             name = "Curved bar standing cable triceps extensions",
             targetSets = 3,
             targetReps = "10,9,8",
@@ -439,7 +440,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening B",
-            code = "4.5b",
+            code = "B.5b",
             name = "Standing straight barbell reverse grip biceps curl",
             targetSets = 3,
             targetReps = "10,9,8",
@@ -456,7 +457,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening B",
-            code = "4.6a",
+            code = "B.6a",
             name = "Ladder knee to chest",
             targetSets = 4,
             targetReps = "12,11,10,9",
@@ -473,7 +474,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening B",
-            code = "4.6b",
+            code = "B.6b",
             name = "Stick sit ups",
             targetSets = 4,
             targetReps = "12,11,10,9",
@@ -490,7 +491,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening B",
-            code = "4.7",
+            code = "B.7",
             name = "Stairs",
             targetSets = 1,
             targetReps = "20 minut",
@@ -510,7 +511,7 @@ object InitialWorkoutData {
         // Trening C
         Exercise(
             section = "Trening C",
-            code = "5.1a",
+            code = "C.1a",
             name = "Farmers walk",
             targetSets = 4,
             targetReps = "40m,35m,30m,25m",
@@ -528,7 +529,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening C",
-            code = "5.1b",
+            code = "C.1b",
             name = "Standing cable pallof press",
             targetSets = 4,
             targetReps = "10,9,8,7",
@@ -545,7 +546,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening C",
-            code = "5.2",
+            code = "C.2",
             name = "DB chest press",
             targetSets = 4,
             targetReps = "10,9,8,7",
@@ -562,7 +563,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening C",
-            code = "5.3",
+            code = "C.3",
             name = "Isometric chin up hold",
             targetSets = 4,
             targetReps = "35s,30s,25s,20s",
@@ -580,7 +581,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening C",
-            code = "5.4a",
+            code = "C.4a",
             name = "Butterfly machine reverse fly",
             targetSets = 4,
             targetReps = "10,9,8,7",
@@ -597,7 +598,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening C",
-            code = "5.4b",
+            code = "C.4b",
             name = "Fitness ball leg curls",
             targetSets = 4,
             targetReps = "10,9,8,7",
@@ -614,7 +615,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening C",
-            code = "5.5a",
+            code = "C.5a",
             name = "Incline bench curved bar triceps extensions",
             targetSets = 3,
             targetReps = "10,9,8",
@@ -631,7 +632,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening C",
-            code = "5.5b",
+            code = "C.5b",
             name = "Incline bench dumbbell biceps curls",
             targetSets = 3,
             targetReps = "10,9,8",
@@ -648,7 +649,7 @@ object InitialWorkoutData {
         ),
         Exercise(
             section = "Trening C",
-            code = "5.6",
+            code = "C.6",
             name = "Kneeling ab wheel rollout",
             targetSets = 4,
             targetReps = "12,11,10,9",

@@ -47,6 +47,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import com.example.data.model.Exercise
 import com.example.data.model.WorkoutSession
 import com.example.data.model.WorkoutSetLog
@@ -66,12 +70,23 @@ fun WorkoutHistoryScreen(
 ) {
     val exerciseMap = remember(allExercises) { allExercises.associateBy { it.id } }
 
+    var selectedFilterIndex by remember { mutableStateOf(0) } // 0: Wszystkie, 1: Treningi główne, 2: Rozgrzewka & Mobilizacja
+
+    val mainSessions = remember(sessions) { sessions.filter { it.isMainWorkout } }
+    val warmupSessions = remember(sessions) { sessions.filter { !it.isMainWorkout } }
+
+    val filteredSessions = when (selectedFilterIndex) {
+        1 -> mainSessions
+        2 -> warmupSessions
+        else -> sessions
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp)
     ) {
-        Column(modifier = Modifier.padding(top = 16.dp, bottom = 12.dp)) {
+        Column(modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)) {
             Text(
                 text = "Historia Treningów",
                 style = MaterialTheme.typography.headlineSmall,
@@ -84,7 +99,40 @@ fun WorkoutHistoryScreen(
             )
         }
 
-        if (sessions.isEmpty()) {
+        // Filter chips row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterChip(
+                selected = selectedFilterIndex == 0,
+                onClick = { selectedFilterIndex = 0 },
+                label = { Text("Wszystkie (${sessions.size})") }
+            )
+            FilterChip(
+                selected = selectedFilterIndex == 1,
+                onClick = { selectedFilterIndex = 1 },
+                label = { Text("Treningi główne (${mainSessions.size})") },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = AthleticOrange.copy(alpha = 0.2f),
+                    selectedLabelColor = AthleticOrange
+                )
+            )
+            FilterChip(
+                selected = selectedFilterIndex == 2,
+                onClick = { selectedFilterIndex = 2 },
+                label = { Text("Rozgrzewka / Mobility (${warmupSessions.size})") },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = ElectricCyan.copy(alpha = 0.2f),
+                    selectedLabelColor = ElectricCyan
+                )
+            )
+        }
+
+        if (filteredSessions.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -103,7 +151,9 @@ fun WorkoutHistoryScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Brak ukończonych treningów",
+                        text = if (selectedFilterIndex == 1) "Brak ukończonych treningów głównych"
+                               else if (selectedFilterIndex == 2) "Brak ukończonych rozgrzewek / mobilizacji"
+                               else "Brak ukończonych sesji",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -120,7 +170,7 @@ fun WorkoutHistoryScreen(
                 contentPadding = PaddingValues(bottom = 90.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(sessions, key = { it.id }) { session ->
+                items(filteredSessions, key = { it.id }) { session ->
                     val sessionSets = allCompletedSets.filter { it.sessionId == session.id }
                     HistorySessionCard(
                         session = session,
@@ -182,11 +232,27 @@ fun HistorySessionCard(
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        Text(
-                            text = session.workoutName,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = session.workoutName,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = if (session.isMainWorkout) AthleticOrange.copy(alpha = 0.15f) else ElectricCyan.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = if (session.isMainWorkout) "Trening" else "Rozgrzewka / Mobility",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (session.isMainWorkout) AthleticOrange else ElectricCyan,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
                         Text(
                             text = dateStr,
                             style = MaterialTheme.typography.labelSmall,
@@ -229,23 +295,31 @@ fun HistorySessionCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Text(
-                    text = "$setsCount serii",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (session.isMainWorkout) {
+                    Text(
+                        text = "$setsCount serii",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
 
-                Text(
-                    text = "•",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                    Text(
+                        text = "•",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
 
-                Text(
-                    text = "Objętość: ${totalVolume}kg",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Bold,
-                    color = ElectricCyan
-                )
+                    Text(
+                        text = "Objętość: ${totalVolume}kg",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = ElectricCyan
+                    )
+                } else {
+                    Text(
+                        text = "${groupedByExercise.size} ćwiczeń mobilizacyjnych",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             if (session.notes.isNotBlank()) {

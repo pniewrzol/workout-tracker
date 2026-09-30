@@ -406,6 +406,9 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                             onAddMedia = { uri, isVideo, caption ->
                                 viewModel.addMedia(uri, isVideo, exercise.id, caption)
                             },
+                            onAddMultipleMedia = { uris, isVideo ->
+                                viewModel.addMultipleMedia(uris, isVideo, exercise.id)
+                            },
                             onDeleteMedia = { media ->
                                 viewModel.deleteMedia(media)
                             },

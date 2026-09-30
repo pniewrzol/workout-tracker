@@ -260,7 +260,7 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(14.dp))
 
                         Text(
-                            text = "Możesz wyeksportować wszystkie swoje dane do pliku JSON i przenieść je na inne urządzenie lub przywrócić w dowolnym momencie.",
+                            text = "Kopia zapasowa oraz automatyczna synchronizacja w chmurze obejmują historię treningów, serie i pomiary ciała. Duże pliki wideo i zdjęcia zostały wyłączone z autobackupu, dzięki czemu kopia jest lekka, bezpieczna i wykonuje się błyskawicznie.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

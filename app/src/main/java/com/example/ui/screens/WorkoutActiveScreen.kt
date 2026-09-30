@@ -1062,13 +1062,19 @@ fun SetLogRepsOnlyRow(
         // Completed checkbox
         IconButton(
             onClick = onToggleCompleted,
-            modifier = Modifier.size(36.dp)
+            modifier = Modifier
+                .size(38.dp)
+                .background(
+                    if (isDone) SuccessGreen else MaterialTheme.colorScheme.surfaceVariant,
+                    RoundedCornerShape(8.dp)
+                )
+                .testTag("set_checkbox_${setLog.id}")
         ) {
             Icon(
-                imageVector = if (isDone) Icons.Default.CheckCircle else Icons.Outlined.CheckCircle,
-                contentDescription = if (isDone) "Oznacz jako nieukończone" else "Oznacz jako ukończone",
-                tint = if (isDone) SuccessGreen else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                modifier = Modifier.size(26.dp)
+                imageVector = Icons.Default.Check,
+                contentDescription = if (isDone) "Ukończona" else "Zaznacz jako ukończona",
+                tint = if (isDone) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
             )
         }
     }
