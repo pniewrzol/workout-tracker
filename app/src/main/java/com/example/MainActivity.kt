@@ -112,6 +112,7 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
     var selectedTab by remember { mutableStateOf<Screen>(Screen.Home) }
 
     val appThemeMode by viewModel.appThemeMode.collectAsStateWithLifecycle()
+    val backupPassword by viewModel.backupPassword.collectAsStateWithLifecycle()
     val allExercises by viewModel.allExercises.collectAsStateWithLifecycle()
     val completedSessions by viewModel.completedSessions.collectAsStateWithLifecycle()
     val activeSession by viewModel.activeSession.collectAsStateWithLifecycle()
@@ -331,6 +332,8 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                     SettingsScreen(
                         currentThemeMode = appThemeMode,
                         onThemeModeChange = { mode -> viewModel.setThemeMode(mode) },
+                        savedBackupPassword = backupPassword,
+                        onSaveBackupPassword = { pass -> viewModel.setBackupPassword(pass) },
                         onExportBackup = { uri, password, callback -> viewModel.exportBackup(uri, password, callback) },
                         onRestoreBackup = { uri, password, callback -> viewModel.restoreBackup(uri, password, callback) },
                         onBack = { currentScreen = Screen.Home }

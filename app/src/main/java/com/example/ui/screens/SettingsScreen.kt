@@ -19,13 +19,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Brightness4
 import androidx.compose.material.icons.filled.Brightness7
 import androidx.compose.material.icons.filled.BrightnessAuto
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DarkMode
@@ -34,11 +34,14 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -46,6 +49,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
@@ -83,7 +87,9 @@ import java.util.Locale
 fun SettingsScreen(
     currentThemeMode: AppThemeMode,
     onThemeModeChange: (AppThemeMode) -> Unit,
-    onExportBackup: (Uri, String?, (Boolean) -> Unit) -> Unit,
+    savedBackupPassword: String,
+    onSaveBackupPassword: (String) -> Unit,
+    onExportBackup: (Uri, String, (Boolean) -> Unit) -> Unit,
     onRestoreBackup: (Uri, String?, (RestoreResult) -> Unit) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
@@ -95,16 +101,21 @@ fun SettingsScreen(
     var resultDialogMessage by remember { mutableStateOf<String?>(null) }
     var resultDialogTitle by remember { mutableStateOf("") }
 
-    // Export Password state
+    // Dialog to set / change encryption password
+    var showSetPasswordDialog by remember { mutableStateOf(false) }
+
+    // Dialog when exporting without a saved password
     var showExportPasswordDialog by remember { mutableStateOf(false) }
     var exportPasswordInput by remember { mutableStateOf("") }
     var isExportPasswordVisible by remember { mutableStateOf(false) }
+    var saveExportPasswordToSettings by remember { mutableStateOf(true) }
     var pendingExportPassword by remember { mutableStateOf<String?>(null) }
 
     // Restore Password state
     var showRestorePasswordDialog by remember { mutableStateOf(false) }
     var restorePasswordInput by remember { mutableStateOf("") }
     var isRestorePasswordVisible by remember { mutableStateOf(false) }
+    var saveRestorePasswordToSettings by remember { mutableStateOf(false) }
     var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
 
     // Backup Create Document Launcher
@@ -112,16 +123,18 @@ fun SettingsScreen(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
         if (uri != null) {
+            val pass = pendingExportPassword ?: savedBackupPassword
+            if (pass.isBlank()) {
+                resultDialogTitle = "Brak hasła"
+                resultDialogMessage = "Wymagane jest hasło do zaszyfrowania kopii zapasowej."
+                return@rememberLauncherForActivityResult
+            }
             isProcessing = true
-            onExportBackup(uri, pendingExportPassword) { success ->
+            onExportBackup(uri, pass) { success ->
                 isProcessing = false
                 if (success) {
                     resultDialogTitle = "Zaszyfrowana kopia utworzona pomyślnie"
-                    resultDialogMessage = if (pendingExportPassword != null) {
-                        "Twoja kopia została zaszyfrowana algorytmem AES-256 z podanym hasłem ochronnym. Zapamiętaj to hasło, aby przywrócić dane w przyszłości."
-                    } else {
-                        "Wszystkie Twoje treningi, serie, pomiary ciała i konfiguracja zostały bezpiecznie zaszyfrowane algorytmem AES-256-GCM i zapisane do pliku kopii."
-                    }
+                    resultDialogMessage = "Wszystkie Twoje treningi, serie, pomiary ciała i konfiguracja zostały bezpiecznie zaszyfrowane algorytmem AES-256-GCM (PBKDF2 600 000 iteracji wg zaleceń OWASP) przy użyciu Twojego hasła."
                 } else {
                     resultDialogTitle = "Błąd eksportu"
                     resultDialogMessage = "Nie udało się zapisać pliku kopii zapasowej. Spróbuj wybrać inne miejsce w pamięci urządzenia."
@@ -137,7 +150,8 @@ fun SettingsScreen(
         if (uri != null) {
             pendingRestoreUri = uri
             isProcessing = true
-            onRestoreBackup(uri, null) { result ->
+            val initialPassword = if (savedBackupPassword.isNotBlank()) savedBackupPassword else null
+            onRestoreBackup(uri, initialPassword) { result ->
                 isProcessing = false
                 if (result.isPasswordRequired) {
                     showRestorePasswordDialog = true
@@ -145,9 +159,11 @@ fun SettingsScreen(
                 } else if (result.isSuccess) {
                     resultDialogTitle = "Przywracanie zakończone"
                     resultDialogMessage = result.message
+                    pendingRestoreUri = null
                 } else {
                     resultDialogTitle = "Błąd przywracania"
                     resultDialogMessage = result.message
+                    pendingRestoreUri = null
                 }
             }
         }
@@ -297,20 +313,132 @@ fun SettingsScreen(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Szyfrowanie AES-256-GCM (brak otwartego tekstu)",
+                                text = "Szyfrowanie AES-256-GCM • PBKDF2 600 000 iteracji",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = SuccessGreen
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
 
-                        Text(
-                            text = "Kopia zapasowa obejmuje historię treningów, serie i pomiary ciała. Wszystkie pliki kopii są w pełni szyfrowane kryptograficznie (AES-256-GCM z PBKDF2). Pliki wideo i zdjęcia są wyłączone z kopii, dzięki czemu proces jest błyskawiczny.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        // User Backup Password Box
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.VpnKey,
+                                            contentDescription = null,
+                                            tint = AthleticOrange,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Twoje hasło szyfrowania",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+
+                                    if (savedBackupPassword.isNotBlank()) {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = SuccessGreen.copy(alpha = 0.15f)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = null,
+                                                    tint = SuccessGreen,
+                                                    modifier = Modifier.size(12.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = "Ustawione",
+                                                    color = SuccessGreen,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = AthleticOrange.copy(alpha = 0.15f)
+                                        ) {
+                                            Text(
+                                                text = "Nieustawione",
+                                                color = AthleticOrange,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                if (savedBackupPassword.isNotBlank()) {
+                                    Text(
+                                        text = "Klucz AES-256 jest generowany z Twojego hasła (600 000 iteracji PBKDF2). Żadne hasło nie jest zaszyte w kodzie aplikacji.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        OutlinedButton(
+                                            onClick = { showSetPasswordDialog = true },
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Text("Zmień hasło", fontSize = 12.sp)
+                                        }
+                                        TextButton(
+                                            onClick = { onSaveBackupPassword("") },
+                                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                                        ) {
+                                            Text("Wyczyść", fontSize = 12.sp)
+                                        }
+                                    }
+                                } else {
+                                    Text(
+                                        text = "Zdefiniuj własne hasło do ochrony kopii zapasowych. Klucz tworzony jest wyłącznie z Twojego hasła za pomocą 600 000 iteracji PBKDF2-HMAC-SHA256 (rekomendacja OWASP).",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    OutlinedButton(
+                                        onClick = { showSetPasswordDialog = true },
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.VpnKey,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Ustaw hasło szyfrowania")
+                                    }
+                                }
+                            }
+                        }
 
                         Spacer(modifier = Modifier.height(14.dp))
 
@@ -320,7 +448,15 @@ fun SettingsScreen(
                         ) {
                             Button(
                                 onClick = {
-                                    showExportPasswordDialog = true
+                                    if (savedBackupPassword.isNotBlank()) {
+                                        val dateStr = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())
+                                        val defaultName = "trening_tracker_backup_$dateStr.json"
+                                        pendingExportPassword = savedBackupPassword
+                                        exportBackupLauncher.launch(defaultName)
+                                    } else {
+                                        exportPasswordInput = ""
+                                        showExportPasswordDialog = true
+                                    }
                                 },
                                 modifier = Modifier
                                     .weight(1f)
@@ -369,7 +505,7 @@ fun SettingsScreen(
                                 )
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Text(
-                                    text = "Przetwarzanie danych...",
+                                    text = "Derywacja klucza (600k iteracji) i przetwarzanie...",
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
@@ -419,7 +555,78 @@ fun SettingsScreen(
         }
     }
 
-    // Export Password Dialog
+    // Set Backup Password Dialog (from settings button)
+    if (showSetPasswordDialog) {
+        var tempPassword by remember { mutableStateOf(savedBackupPassword) }
+        var isTempPasswordVisible by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { showSetPasswordDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.VpnKey,
+                        contentDescription = null,
+                        tint = AthleticOrange
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Hasło Szyfrowania Kopii", fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Wprowadź hasło, które posłuży do wygenerowania 256-bitowego klucza AES-GCM z 600 000 iteracji PBKDF2-HMAC-SHA256 (rekomendacja OWASP). Hasło zapisane jest wyłącznie lokalnie w ustawieniach Twojej aplikacji i nigdy nie jest zaszyte w plikach kodu.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    OutlinedTextField(
+                        value = tempPassword,
+                        onValueChange = { tempPassword = it },
+                        label = { Text("Twoje hasło szyfrowania") },
+                        singleLine = true,
+                        visualTransformation = if (isTempPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { isTempPasswordVisible = !isTempPasswordVisible }) {
+                                Icon(
+                                    imageVector = if (isTempPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = if (isTempPasswordVisible) "Ukryj hasło" else "Pokaż hasło"
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val pass = tempPassword.trim()
+                        onSaveBackupPassword(pass)
+                        showSetPasswordDialog = false
+                        resultDialogTitle = "Hasło zapisane"
+                        resultDialogMessage = if (pass.isNotBlank()) {
+                            "Twoje hasło szyfrowania zostało pomyślnie zapisane w ustawieniach aplikacji."
+                        } else {
+                            "Hasło szyfrowania zostało usunięte."
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AthleticOrange),
+                    enabled = tempPassword.isNotBlank()
+                ) {
+                    Text("Zapisz hasło")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSetPasswordDialog = false }) {
+                    Text("Anuluj")
+                }
+            }
+        )
+    }
+
+    // Export Password Dialog (when user clicks Utwórz kopię and has no saved password)
     if (showExportPasswordDialog) {
         AlertDialog(
             onDismissRequest = { showExportPasswordDialog = false },
@@ -428,30 +635,23 @@ fun SettingsScreen(
                     Icon(
                         imageVector = Icons.Default.Security,
                         contentDescription = null,
-                        tint = SuccessGreen
+                        tint = AthleticOrange
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Szyfrowana Kopia AES-256", fontWeight = FontWeight.Bold)
+                    Text("Podaj Hasło Szyfrowania", fontWeight = FontWeight.Bold)
                 }
             },
             text = {
                 Column {
                     Text(
-                        text = "Plik kopii zapasowej jest w 100% chroniony szyfrowaniem AES-256-GCM. Żadne dane nie są zapisywane otwartym tekstem.",
+                        text = "Aplikacja nie posiada domyślnego hasła zaszytego w kodzie. Aby utworzyć kopię zapasową, wprowadź własne hasło (będzie użyte 600 000 iteracji PBKDF2):",
                         style = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = "Możesz opcjonalnie zdefiniować własne hasło ochronne lub pozostawić to pole puste (wtedy użyte zostanie wbudowane bezpieczne szyfrowanie skarbca aplikacji):",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
                         value = exportPasswordInput,
                         onValueChange = { exportPasswordInput = it },
-                        label = { Text("Własne hasło (opcjonalne)") },
-                        placeholder = { Text("Zostaw puste dla szyfrowania standardowego") },
+                        label = { Text("Hasło kopii zapasowej") },
                         singleLine = true,
                         visualTransformation = if (isExportPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
@@ -464,18 +664,41 @@ fun SettingsScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { saveExportPasswordToSettings = !saveExportPasswordToSettings }
+                    ) {
+                        Checkbox(
+                            checked = saveExportPasswordToSettings,
+                            onCheckedChange = { saveExportPasswordToSettings = it },
+                            colors = CheckboxDefaults.colors(checkedColor = AthleticOrange)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Zapisz to hasło w ustawieniach aplikacji",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        pendingExportPassword = if (exportPasswordInput.isNotBlank()) exportPasswordInput else null
-                        showExportPasswordDialog = false
-                        val dateStr = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())
-                        val defaultName = "trening_tracker_backup_$dateStr.json"
-                        exportBackupLauncher.launch(defaultName)
+                        val pass = exportPasswordInput.trim()
+                        if (pass.isNotBlank()) {
+                            if (saveExportPasswordToSettings) {
+                                onSaveBackupPassword(pass)
+                            }
+                            pendingExportPassword = pass
+                            showExportPasswordDialog = false
+                            val dateStr = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())
+                            val defaultName = "trening_tracker_backup_$dateStr.json"
+                            exportBackupLauncher.launch(defaultName)
+                        }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AthleticOrange)
+                    colors = ButtonDefaults.buttonColors(containerColor = AthleticOrange),
+                    enabled = exportPasswordInput.isNotBlank()
                 ) {
                     Text("Utwórz i zapisz")
                 }
@@ -509,7 +732,7 @@ fun SettingsScreen(
             text = {
                 Column {
                     Text(
-                        text = "Ten plik kopii zapasowej został zabezpieczony hasłem. Wprowadź hasło, aby odszyfrować i przywrócić dane:",
+                        text = "Ten plik kopii zapasowej jest zaszyfrowany. Wprowadź hasło utworzone podczas eksportu, aby odszyfrować dane:",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -529,12 +752,28 @@ fun SettingsScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { saveRestorePasswordToSettings = !saveRestorePasswordToSettings }
+                    ) {
+                        Checkbox(
+                            checked = saveRestorePasswordToSettings,
+                            onCheckedChange = { saveRestorePasswordToSettings = it },
+                            colors = CheckboxDefaults.colors(checkedColor = AthleticOrange)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Zapisz to hasło w ustawieniach jako domyślne",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        val pass = restorePasswordInput
+                        val pass = restorePasswordInput.trim()
                         val uri = pendingRestoreUri
                         showRestorePasswordDialog = false
                         if (uri != null) {
@@ -546,6 +785,9 @@ fun SettingsScreen(
                                     resultDialogTitle = "Błędne hasło"
                                     resultDialogMessage = "Wprowadzone hasło jest niepoprawne."
                                 } else if (result.isSuccess) {
+                                    if (saveRestorePasswordToSettings) {
+                                        onSaveBackupPassword(pass)
+                                    }
                                     resultDialogTitle = "Przywracanie zakończone"
                                     resultDialogMessage = result.message
                                     pendingRestoreUri = null

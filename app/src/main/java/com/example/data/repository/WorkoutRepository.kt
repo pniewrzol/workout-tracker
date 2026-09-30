@@ -229,7 +229,7 @@ class WorkoutRepository(
     }
 
     // Backup & Restore
-    suspend fun exportBackup(uri: Uri, password: String? = null): Boolean = withContext(Dispatchers.IO) {
+    suspend fun exportBackup(uri: Uri, password: String): Boolean = withContext(Dispatchers.IO) {
         backupManager.exportBackupToUri(uri, password)
     }
 

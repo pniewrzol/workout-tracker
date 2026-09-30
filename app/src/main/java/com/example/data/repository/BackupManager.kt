@@ -33,7 +33,7 @@ data class RestoreResult(
     val message: String = ""
 )
 
-class PasswordRequiredException : Exception("Wymagane hasło do odszyfrowania kopii zapasowej.")
+class PasswordRequiredException(msg: String = "Wymagane hasło do odszyfrowania kopii zapasowej.") : Exception(msg)
 class InvalidPasswordException(msg: String) : Exception(msg)
 
 class BackupManager(
@@ -44,25 +44,24 @@ class BackupManager(
 ) {
 
     companion object {
-        private const val PBKDF2_ITERATIONS = 10000
+        // OWASP recommended iteration count for PBKDF2-HMAC-SHA256 (600,000+)
+        const val PBKDF2_ITERATIONS = 600_000
         private const val KEY_LENGTH_BITS = 256
         private const val GCM_TAG_LENGTH_BITS = 128
         private const val IV_LENGTH_BYTES = 12
         private const val SALT_LENGTH_BYTES = 16
-        // Standard encryption key used when no custom password is supplied by the user,
-        // ensuring the backup file is always encrypted on disk/drive rather than plaintext JSON.
-        private const val DEFAULT_ENCRYPTION_SECRET = "WorkoutTracker_SafeVault_2026!EncryptedBackupKey"
 
-        fun deriveKey(password: String, salt: ByteArray): SecretKeySpec {
+        fun deriveKey(password: String, salt: ByteArray, iterations: Int = PBKDF2_ITERATIONS): SecretKeySpec {
             val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-            val spec = PBEKeySpec(password.toCharArray(), salt, PBKDF2_ITERATIONS, KEY_LENGTH_BITS)
+            val spec = PBEKeySpec(password.toCharArray(), salt, iterations, KEY_LENGTH_BITS)
             val secretKey = factory.generateSecret(spec)
             return SecretKeySpec(secretKey.encoded, "AES")
         }
 
-        fun encryptPayload(plainText: String, customPassword: String?): String {
-            val hasCustomPassword = !customPassword.isNullOrBlank()
-            val passwordToUse = if (hasCustomPassword) customPassword!! else DEFAULT_ENCRYPTION_SECRET
+        fun encryptPayload(plainText: String, password: String, iterations: Int = PBKDF2_ITERATIONS): String {
+            if (password.isBlank()) {
+                throw PasswordRequiredException("Wymagane jest podanie hasła do zaszyfrowania kopii.")
+            }
 
             val random = SecureRandom()
             val salt = ByteArray(SALT_LENGTH_BYTES)
@@ -70,16 +69,17 @@ class BackupManager(
             val iv = ByteArray(IV_LENGTH_BYTES)
             random.nextBytes(iv)
 
-            val key = deriveKey(passwordToUse, salt)
+            val key = deriveKey(password, salt, iterations)
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv))
             val cipherBytes = cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
 
             val envelope = JSONObject().apply {
                 put("encrypted", true)
-                put("version", 1)
+                put("version", 2)
                 put("cipher", "AES-256-GCM")
-                put("hasCustomPassword", hasCustomPassword)
+                put("kdf", "PBKDF2WithHmacSHA256")
+                put("iterations", iterations)
                 put("salt", Base64.encodeToString(salt, Base64.NO_WRAP))
                 put("iv", Base64.encodeToString(iv, Base64.NO_WRAP))
                 put("payload", Base64.encodeToString(cipherBytes, Base64.NO_WRAP))
@@ -87,7 +87,7 @@ class BackupManager(
             return envelope.toString(2)
         }
 
-        fun decryptPayload(raw: String, customPassword: String?): String {
+        fun decryptPayload(raw: String, password: String?): String {
             val trimmed = raw.trim()
             if (!trimmed.startsWith("{")) {
                 return raw
@@ -104,10 +104,14 @@ class BackupManager(
                 return raw
             }
 
-            val hasCustomPassword = root.optBoolean("hasCustomPassword", false)
+            if (password.isNullOrBlank()) {
+                throw PasswordRequiredException("Wprowadź hasło, aby odszyfrować kopię.")
+            }
+
             val saltBase64 = root.optString("salt", "")
             val ivBase64 = root.optString("iv", "")
             val payloadBase64 = root.optString("payload", "")
+            val iterations = root.optInt("iterations", PBKDF2_ITERATIONS)
 
             if (saltBase64.isBlank() || ivBase64.isBlank() || payloadBase64.isBlank()) {
                 throw InvalidPasswordException("Uszkodzony plik zaszyfrowanej kopii.")
@@ -117,16 +121,7 @@ class BackupManager(
             val iv = Base64.decode(ivBase64, Base64.NO_WRAP)
             val cipherBytes = Base64.decode(payloadBase64, Base64.NO_WRAP)
 
-            val passwordToUse = if (hasCustomPassword) {
-                if (customPassword.isNullOrBlank()) {
-                    throw PasswordRequiredException()
-                }
-                customPassword
-            } else {
-                if (!customPassword.isNullOrBlank()) customPassword else DEFAULT_ENCRYPTION_SECRET
-            }
-
-            val key = deriveKey(passwordToUse, salt)
+            val key = deriveKey(password, salt, iterations)
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv))
 
@@ -208,10 +203,13 @@ class BackupManager(
         root.toString(2)
     }
 
-    suspend fun exportBackupToUri(uri: Uri, password: String? = null): Boolean = withContext(Dispatchers.IO) {
+    suspend fun exportBackupToUri(uri: Uri, password: String): Boolean = withContext(Dispatchers.IO) {
         try {
+            if (password.isBlank()) {
+                return@withContext false
+            }
             val plainJson = createBackupJson()
-            // Always encrypt the backup with AES-256-GCM
+            // Encrypt using user's explicit password with 600,000 PBKDF2 iterations
             val encryptedJson = encryptPayload(plainJson, password)
             context.contentResolver.openOutputStream(uri)?.use { outputStream ->
                 OutputStreamWriter(outputStream, Charsets.UTF_8).use { writer ->

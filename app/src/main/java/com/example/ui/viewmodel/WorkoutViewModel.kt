@@ -69,6 +69,15 @@ class WorkoutViewModel(
         sharedPreferences.edit().putString("app_theme_mode", mode.name).apply()
     }
 
+    // User configured backup encryption password (saved in app settings, never hardcoded in files)
+    private val _backupPassword = MutableStateFlow(sharedPreferences.getString("user_backup_password", "") ?: "")
+    val backupPassword: StateFlow<String> = _backupPassword.asStateFlow()
+
+    fun setBackupPassword(password: String) {
+        _backupPassword.value = password
+        sharedPreferences.edit().putString("user_backup_password", password).apply()
+    }
+
     private fun loadSavedThemeMode(): AppThemeMode {
         val saved = sharedPreferences.getString("app_theme_mode", AppThemeMode.SYSTEM.name)
         return try {
@@ -292,7 +301,7 @@ class WorkoutViewModel(
     }
 
     // Backup & Restore
-    fun exportBackup(uri: Uri, password: String? = null, onResult: (Boolean) -> Unit) {
+    fun exportBackup(uri: Uri, password: String, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
             val result = repository.exportBackup(uri, password)
             onResult(result)
