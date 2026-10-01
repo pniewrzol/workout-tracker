@@ -3,6 +3,7 @@ package com.example.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,7 +21,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -667,6 +671,99 @@ fun ExerciseWorkoutCard(
 }
 
 /**
+ * Custom numeric input box for workout set rows.
+ * Replaces Material 3 OutlinedTextField (which has huge internal padding and fixed min-height)
+ * with a clean, perfectly centered, non-clipped BasicTextField inside a styled container.
+ */
+@Composable
+fun SetNumberInputBox(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String = "0",
+    suffix: String? = null,
+    keyboardType: KeyboardType = KeyboardType.Decimal,
+    modifier: Modifier = Modifier,
+    isCompleted: Boolean = false,
+    testTag: String = ""
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = modifier
+            .height(38.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                if (isCompleted) SuccessGreen.copy(alpha = 0.12f)
+                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+            )
+            .border(
+                width = if (isFocused) 1.5.dp else 1.dp,
+                color = if (isFocused) AthleticOrange
+                else if (isCompleted) SuccessGreen.copy(alpha = 0.4f)
+                else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(horizontal = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = if (isCompleted) SuccessGreen else MaterialTheme.colorScheme.onSurface
+                ),
+                cursorBrush = SolidColor(AthleticOrange),
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .onFocusChanged { isFocused = it.isFocused }
+                    .then(if (testTag.isNotEmpty()) Modifier.testTag(testTag) else Modifier),
+                decorationBox = { innerTextField ->
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (value.isEmpty()) {
+                            Text(
+                                text = placeholder,
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    textAlign = TextAlign.Center,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+                                )
+                            )
+                        }
+                        innerTextField()
+                    }
+                }
+            )
+
+            if (!suffix.isNullOrBlank()) {
+                Spacer(modifier = Modifier.width(2.dp))
+                Text(
+                    text = suffix,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
+            }
+        }
+    }
+}
+
+/**
  * Row for distance-based exercises (e.g. Row erg 500m, Air bike 500m, Farmers walk 40m).
  * ONLY displays distance in meters with +/- stepper, NO weight and NO reps.
  */
@@ -705,7 +802,7 @@ fun SetLogDistanceRow(
             text = "${setLog.setNumber}",
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.width(42.dp),
+            modifier = Modifier.width(36.dp),
             color = if (isDone) SuccessGreen else MaterialTheme.colorScheme.onSurface
         )
 
@@ -727,9 +824,9 @@ fun SetLogDistanceRow(
                 Text("-", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            Spacer(modifier = Modifier.width(2.dp))
+            Spacer(modifier = Modifier.width(4.dp))
 
-            OutlinedTextField(
+            SetNumberInputBox(
                 value = distText,
                 onValueChange = { newVal ->
                     val filtered = newVal.filter { it.isDigit() || it == '.' }
@@ -737,29 +834,14 @@ fun SetLogDistanceRow(
                     val d = filtered.toFloatOrNull() ?: 0f
                     onUpdateSet(setLog.copy(distanceMeters = d, weightKg = 0f, reps = 0))
                 },
-                trailingIcon = {
-                    Text(
-                        text = "m",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(end = 4.dp)
-                    )
-                },
-                placeholder = { Text("0", textAlign = TextAlign.Center) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.Bold
-                ),
-                modifier = Modifier
-                    .width(88.dp)
-                    .height(44.dp)
-                    .padding(horizontal = 2.dp)
+                placeholder = "0",
+                suffix = "m",
+                keyboardType = KeyboardType.Decimal,
+                modifier = Modifier.width(82.dp),
+                isCompleted = isDone
             )
 
-            Spacer(modifier = Modifier.width(2.dp))
+            Spacer(modifier = Modifier.width(4.dp))
 
             IconButton(
                 onClick = {
@@ -850,7 +932,7 @@ fun SetLogTimeRow(
             text = "${setLog.setNumber}",
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.width(42.dp),
+            modifier = Modifier.width(36.dp),
             color = if (isDone) SuccessGreen else MaterialTheme.colorScheme.onSurface
         )
 
@@ -872,9 +954,9 @@ fun SetLogTimeRow(
                 Text("-", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            Spacer(modifier = Modifier.width(2.dp))
+            Spacer(modifier = Modifier.width(4.dp))
 
-            OutlinedTextField(
+            SetNumberInputBox(
                 value = timeInputText,
                 onValueChange = { newVal ->
                     timeInputText = newVal
@@ -886,20 +968,13 @@ fun SetLogTimeRow(
                         onUpdateSet(setLog.copy(timeSeconds = totalSec, weightKg = 0f, reps = 0))
                     }
                 },
-                placeholder = { Text("0s", textAlign = TextAlign.Center) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.Bold
-                ),
-                modifier = Modifier
-                    .width(82.dp)
-                    .height(44.dp)
-                    .padding(horizontal = 2.dp)
+                placeholder = "0s",
+                keyboardType = KeyboardType.Text,
+                modifier = Modifier.width(76.dp),
+                isCompleted = isDone
             )
 
-            Spacer(modifier = Modifier.width(2.dp))
+            Spacer(modifier = Modifier.width(4.dp))
 
             IconButton(
                 onClick = {
@@ -910,6 +985,8 @@ fun SetLogTimeRow(
             ) {
                 Text("+", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AthleticOrange)
             }
+
+            Spacer(modifier = Modifier.width(4.dp))
 
             // Quick trigger timer button for this set duration
             IconButton(
@@ -997,7 +1074,7 @@ fun SetLogRepsOnlyRow(
             text = "${setLog.setNumber}",
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.width(44.dp),
+            modifier = Modifier.width(36.dp),
             color = if (isDone) SuccessGreen else MaterialTheme.colorScheme.onSurface
         )
 
@@ -1018,7 +1095,9 @@ fun SetLogRepsOnlyRow(
                 Text("-", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp)
             }
 
-            OutlinedTextField(
+            Spacer(modifier = Modifier.width(4.dp))
+
+            SetNumberInputBox(
                 value = repsText,
                 onValueChange = { newVal ->
                     val filtered = newVal.filter { it.isDigit() }
@@ -1026,26 +1105,14 @@ fun SetLogRepsOnlyRow(
                     val r = filtered.toIntOrNull() ?: 0
                     onUpdateSet(setLog.copy(reps = r))
                 },
-                placeholder = { Text("0", textAlign = TextAlign.Center) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.Bold
-                ),
-                trailingIcon = {
-                    Text(
-                        text = "powt.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(end = 4.dp)
-                    )
-                },
-                modifier = Modifier
-                    .width(96.dp)
-                    .height(44.dp)
-                    .padding(horizontal = 4.dp)
+                placeholder = "0",
+                suffix = "powt.",
+                keyboardType = KeyboardType.Number,
+                modifier = Modifier.width(90.dp),
+                isCompleted = isDone
             )
+
+            Spacer(modifier = Modifier.width(4.dp))
 
             IconButton(
                 onClick = {
@@ -1132,13 +1199,13 @@ fun SetLogWeightRepsRow(
             text = "${setLog.setNumber}",
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.width(42.dp),
+            modifier = Modifier.width(36.dp),
             color = if (isDone) SuccessGreen else MaterialTheme.colorScheme.onSurface
         )
 
         // Weight Input (with quick +/- stepper buttons)
         Row(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1.15f),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1148,12 +1215,14 @@ fun SetLogWeightRepsRow(
                     val newWeight = (current - 2.5f).coerceAtLeast(0f)
                     onUpdateSet(setLog.copy(weightKg = newWeight))
                 },
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(26.dp)
             ) {
-                Text("-", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("-", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            OutlinedTextField(
+            Spacer(modifier = Modifier.width(4.dp))
+
+            SetNumberInputBox(
                 value = weightText,
                 onValueChange = { newVal ->
                     val filtered = newVal.filter { it.isDigit() || it == '.' }
@@ -1161,18 +1230,13 @@ fun SetLogWeightRepsRow(
                     val w = filtered.toFloatOrNull() ?: 0f
                     onUpdateSet(setLog.copy(weightKg = w))
                 },
-                placeholder = { Text("0", textAlign = TextAlign.Center) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.Bold
-                ),
-                modifier = Modifier
-                    .width(62.dp)
-                    .height(44.dp)
-                    .padding(horizontal = 2.dp)
+                placeholder = "0",
+                keyboardType = KeyboardType.Decimal,
+                modifier = Modifier.width(62.dp),
+                isCompleted = isDone
             )
+
+            Spacer(modifier = Modifier.width(4.dp))
 
             IconButton(
                 onClick = {
@@ -1180,9 +1244,9 @@ fun SetLogWeightRepsRow(
                     val newWeight = current + 2.5f
                     onUpdateSet(setLog.copy(weightKg = newWeight))
                 },
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(26.dp)
             ) {
-                Text("+", fontWeight = FontWeight.Bold, color = AthleticOrange)
+                Text("+", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AthleticOrange)
             }
         }
 
@@ -1198,12 +1262,14 @@ fun SetLogWeightRepsRow(
                     val newReps = (current - 1).coerceAtLeast(1)
                     onUpdateSet(setLog.copy(reps = newReps))
                 },
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(26.dp)
             ) {
-                Text("-", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("-", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            OutlinedTextField(
+            Spacer(modifier = Modifier.width(4.dp))
+
+            SetNumberInputBox(
                 value = repsText,
                 onValueChange = { newVal ->
                     val filtered = newVal.filter { it.isDigit() }
@@ -1211,18 +1277,13 @@ fun SetLogWeightRepsRow(
                     val r = filtered.toIntOrNull() ?: 0
                     onUpdateSet(setLog.copy(reps = r))
                 },
-                placeholder = { Text("0", textAlign = TextAlign.Center) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.Bold
-                ),
-                modifier = Modifier
-                    .width(52.dp)
-                    .height(44.dp)
-                    .padding(horizontal = 2.dp)
+                placeholder = "0",
+                keyboardType = KeyboardType.Number,
+                modifier = Modifier.width(52.dp),
+                isCompleted = isDone
             )
+
+            Spacer(modifier = Modifier.width(4.dp))
 
             IconButton(
                 onClick = {
@@ -1230,9 +1291,9 @@ fun SetLogWeightRepsRow(
                     val newReps = current + 1
                     onUpdateSet(setLog.copy(reps = newReps))
                 },
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(26.dp)
             ) {
-                Text("+", fontWeight = FontWeight.Bold, color = AthleticOrange)
+                Text("+", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AthleticOrange)
             }
         }
 
