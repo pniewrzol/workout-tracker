@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <external-files-path name="external_files" path="." />
-    <files-path name="internal_files" path="." />
+    <files-path name="exercise_media" path="exercise_media/" />
 </paths>

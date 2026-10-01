@@ -13,6 +13,7 @@ import com.example.data.model.WorkoutSession
 import com.example.data.model.WorkoutSetLog
 import com.example.data.repository.RestoreResult
 import com.example.data.repository.WorkoutRepository
+import com.example.data.security.SecurePasswordStorage
 import com.example.ui.components.ChartPoint
 import com.example.ui.theme.AppThemeMode
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -51,7 +52,8 @@ enum class MeasurementMetric(val label: String, val unit: String) {
 
 class WorkoutViewModel(
     private val repository: WorkoutRepository,
-    private val sharedPreferences: SharedPreferences
+    private val sharedPreferences: SharedPreferences,
+    private val securePasswordStorage: SecurePasswordStorage
 ) : ViewModel() {
 
     init {
@@ -69,13 +71,13 @@ class WorkoutViewModel(
         sharedPreferences.edit().putString("app_theme_mode", mode.name).apply()
     }
 
-    // User configured backup encryption password (saved in app settings, never hardcoded in files)
-    private val _backupPassword = MutableStateFlow(sharedPreferences.getString("user_backup_password", "") ?: "")
+    // User configured backup encryption password (stored securely via EncryptedSharedPreferences / Android KeyStore)
+    private val _backupPassword = MutableStateFlow(securePasswordStorage.getBackupPassword())
     val backupPassword: StateFlow<String> = _backupPassword.asStateFlow()
 
     fun setBackupPassword(password: String) {
         _backupPassword.value = password
-        sharedPreferences.edit().putString("user_backup_password", password).apply()
+        securePasswordStorage.setBackupPassword(password)
     }
 
     private fun loadSavedThemeMode(): AppThemeMode {
@@ -439,7 +441,8 @@ class WorkoutViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(WorkoutViewModel::class.java)) {
             val prefs = context.getSharedPreferences("app_settings_prefs", Context.MODE_PRIVATE)
-            return WorkoutViewModel(repository, prefs) as T
+            val secureStorage = SecurePasswordStorage(context.applicationContext)
+            return WorkoutViewModel(repository, prefs, secureStorage) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

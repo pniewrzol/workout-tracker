@@ -89,6 +89,7 @@ class MainActivity : ComponentActivity() {
         val database = AppDatabase.getDatabase(applicationContext, CoroutineScope(Dispatchers.IO))
         val repository = WorkoutRepository(
             context = applicationContext,
+            database = database,
             exerciseDao = database.exerciseDao(),
             mediaDao = database.mediaDao(),
             workoutDao = database.workoutDao(),

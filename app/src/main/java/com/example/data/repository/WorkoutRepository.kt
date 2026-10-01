@@ -2,6 +2,8 @@ package com.example.data.repository
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
+import com.example.data.db.AppDatabase
 import com.example.data.db.BodyMeasurementDao
 import com.example.data.db.ExerciseDao
 import com.example.data.db.MediaDao
@@ -21,11 +23,27 @@ import java.util.UUID
 
 class WorkoutRepository(
     private val context: Context,
-    private val exerciseDao: ExerciseDao,
-    private val mediaDao: MediaDao,
-    private val workoutDao: WorkoutDao,
-    private val bodyMeasurementDao: BodyMeasurementDao
+    private val database: AppDatabase,
+    private val exerciseDao: ExerciseDao = database.exerciseDao(),
+    private val mediaDao: MediaDao = database.mediaDao(),
+    private val workoutDao: WorkoutDao = database.workoutDao(),
+    private val bodyMeasurementDao: BodyMeasurementDao = database.bodyMeasurementDao()
 ) {
+
+    constructor(
+        context: Context,
+        exerciseDao: ExerciseDao,
+        mediaDao: MediaDao,
+        workoutDao: WorkoutDao,
+        bodyMeasurementDao: BodyMeasurementDao
+    ) : this(
+        context = context,
+        database = AppDatabase.getDatabase(context, kotlinx.coroutines.CoroutineScope(Dispatchers.IO)),
+        exerciseDao = exerciseDao,
+        mediaDao = mediaDao,
+        workoutDao = workoutDao,
+        bodyMeasurementDao = bodyMeasurementDao
+    )
 
     val allExercises: Flow<List<Exercise>> = exerciseDao.getAllExercises()
     val allCompletedSessions: Flow<List<WorkoutSession>> = workoutDao.getCompletedSessions()
@@ -34,7 +52,7 @@ class WorkoutRepository(
     val allMeasurements: Flow<List<BodyMeasurement>> = bodyMeasurementDao.getAllMeasurements()
     val allMeasurementsAsc: Flow<List<BodyMeasurement>> = bodyMeasurementDao.getAllMeasurementsAsc()
 
-    val backupManager = BackupManager(context, exerciseDao, workoutDao, bodyMeasurementDao)
+    val backupManager = BackupManager(context, database)
 
     suspend fun checkAndSeedExercises() = withContext(Dispatchers.IO) {
         // 1. Migrate any existing old codes (e.g. "1.1", "2.8", "3.5a") to new codes ("R.1", "M.8", "A.5a")
@@ -111,44 +129,6 @@ class WorkoutRepository(
                 )
             }
         }
-
-        // 4. Clean up any historical or active set logs where non-distance/non-time exercises were corrupted with distance or 0 reps
-        sanitizeSetLogs()
-    }
-
-    private suspend fun sanitizeSetLogs() {
-        val exercisesMap = exerciseDao.getAllExercisesList().associateBy { it.id }
-        val allSets = workoutDao.getAllSetLogsDirect()
-        for (set in allSets) {
-            val ex = exercisesMap[set.exerciseId] ?: continue
-            if (ex.isWeightAndReps) {
-                var needsUpdate = false
-                var newDist = set.distanceMeters
-                var newTime = set.timeSeconds
-                var newReps = set.reps
-                if (set.distanceMeters != null) {
-                    newDist = null
-                    needsUpdate = true
-                }
-                if (set.timeSeconds != null) {
-                    newTime = null
-                    needsUpdate = true
-                }
-                if (set.reps <= 0) {
-                    newReps = parseDefaultReps(ex.targetReps, set.setNumber)
-                    needsUpdate = true
-                }
-                if (needsUpdate) {
-                    workoutDao.updateSetLog(
-                        set.copy(
-                            distanceMeters = newDist,
-                            timeSeconds = newTime,
-                            reps = newReps
-                        )
-                    )
-                }
-            }
-        }
     }
 
     fun getExercisesBySection(section: String): Flow<List<Exercise>> {
@@ -202,7 +182,7 @@ class WorkoutRepository(
             val newId = mediaDao.insertMedia(media)
             media.copy(id = newId)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("WorkoutRepository", "Error saving media file", e)
             null
         }
     }
@@ -214,7 +194,7 @@ class WorkoutRepository(
                 file.delete()
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("WorkoutRepository", "Error deleting media file", e)
         }
         mediaDao.deleteMedia(media)
     }

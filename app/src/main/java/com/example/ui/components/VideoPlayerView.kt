@@ -3,6 +3,7 @@ package com.example.ui.components
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import android.widget.MediaController
 import android.widget.VideoView
 import androidx.compose.foundation.background
@@ -245,6 +246,6 @@ private fun openVideoInSystemPlayer(context: Context, uri: Uri) {
         }
         context.startActivity(intent)
     } catch (e: Exception) {
-        e.printStackTrace()
+        Log.w("VideoPlayerView", "Unable to open video in external player", e)
     }
 }

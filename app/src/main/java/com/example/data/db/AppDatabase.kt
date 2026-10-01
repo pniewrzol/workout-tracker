@@ -58,20 +58,36 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private fun addColumnIfNotExists(
+            db: SupportSQLiteDatabase,
+            tableName: String,
+            columnName: String,
+            columnDef: String
+        ) {
+            val cursor = db.query("PRAGMA table_info(`$tableName`)")
+            var exists = false
+            cursor.use {
+                val nameIndex = it.getColumnIndex("name")
+                if (nameIndex != -1) {
+                    while (it.moveToNext()) {
+                        if (it.getString(nameIndex).equals(columnName, ignoreCase = true)) {
+                            exists = true
+                            break
+                        }
+                    }
+                }
+            }
+            if (!exists) {
+                db.execSQL("ALTER TABLE `$tableName` ADD COLUMN `$columnName` $columnDef")
+            }
+        }
+
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                try {
-                    db.execSQL("ALTER TABLE `exercises` ADD COLUMN `measurementType` TEXT NOT NULL DEFAULT 'WEIGHT_AND_REPS'")
-                } catch (_: Exception) {}
-                try {
-                    db.execSQL("ALTER TABLE `workout_set_logs` ADD COLUMN `timeSeconds` INTEGER")
-                } catch (_: Exception) {}
-                try {
-                    db.execSQL("ALTER TABLE `workout_set_logs` ADD COLUMN `distanceMeters` REAL")
-                } catch (_: Exception) {}
-                try {
-                    db.execSQL("ALTER TABLE `workout_set_logs` ADD COLUMN `rir` REAL")
-                } catch (_: Exception) {}
+                addColumnIfNotExists(db, "exercises", "measurementType", "TEXT NOT NULL DEFAULT 'WEIGHT_AND_REPS'")
+                addColumnIfNotExists(db, "workout_set_logs", "timeSeconds", "INTEGER")
+                addColumnIfNotExists(db, "workout_set_logs", "distanceMeters", "REAL")
+                addColumnIfNotExists(db, "workout_set_logs", "rir", "REAL")
             }
         }
 
