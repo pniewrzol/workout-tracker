@@ -76,9 +76,13 @@ class BackupManager(
         private const val SALT_LENGTH_BYTES = 16
 
         fun deriveKey(password: String, salt: ByteArray, iterations: Int = PBKDF2_ITERATIONS): SecretKeySpec {
-            val safeIterations = iterations.coerceIn(MIN_PBKDF2_ITERATIONS, MAX_PBKDF2_ITERATIONS)
+            if (iterations < MIN_PBKDF2_ITERATIONS || iterations > MAX_PBKDF2_ITERATIONS) {
+                throw IllegalArgumentException(
+                    "Liczba iteracji PBKDF2 ($iterations) jest poza bezpiecznym zakresem ($MIN_PBKDF2_ITERATIONS–$MAX_PBKDF2_ITERATIONS)."
+                )
+            }
             val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-            val spec = PBEKeySpec(password.toCharArray(), salt, safeIterations, KEY_LENGTH_BITS)
+            val spec = PBEKeySpec(password.toCharArray(), salt, iterations, KEY_LENGTH_BITS)
             val secretKey = factory.generateSecret(spec)
             return SecretKeySpec(secretKey.encoded, "AES")
         }
@@ -87,15 +91,19 @@ class BackupManager(
             if (password.isBlank()) {
                 throw PasswordRequiredException("Wymagane jest podanie hasła do zaszyfrowania kopii.")
             }
+            if (iterations < MIN_PBKDF2_ITERATIONS || iterations > MAX_PBKDF2_ITERATIONS) {
+                throw IllegalArgumentException(
+                    "Liczba iteracji PBKDF2 ($iterations) jest poza bezpiecznym zakresem ($MIN_PBKDF2_ITERATIONS–$MAX_PBKDF2_ITERATIONS)."
+                )
+            }
 
-            val safeIterations = iterations.coerceIn(MIN_PBKDF2_ITERATIONS, MAX_PBKDF2_ITERATIONS)
             val random = SecureRandom()
             val salt = ByteArray(SALT_LENGTH_BYTES)
             random.nextBytes(salt)
             val iv = ByteArray(IV_LENGTH_BYTES)
             random.nextBytes(iv)
 
-            val key = deriveKey(password, salt, safeIterations)
+            val key = deriveKey(password, salt, iterations)
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv))
             val cipherBytes = cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
@@ -105,7 +113,7 @@ class BackupManager(
                 put("version", 2)
                 put("cipher", "AES-256-GCM")
                 put("kdf", "PBKDF2WithHmacSHA256")
-                put("iterations", safeIterations)
+                put("iterations", iterations)
                 put("salt", Base64.encodeToString(salt, Base64.NO_WRAP))
                 put("iv", Base64.encodeToString(iv, Base64.NO_WRAP))
                 put("payload", Base64.encodeToString(cipherBytes, Base64.NO_WRAP))
@@ -138,9 +146,16 @@ class BackupManager(
             val ivBase64 = root.optString("iv", "")
             val payloadBase64 = root.optString("payload", "")
 
-            // Cap PBKDF2 iteration count to prevent DoS from maliciously crafted files
-            val rawIterations = root.optInt("iterations", PBKDF2_ITERATIONS)
-            val iterations = rawIterations.coerceIn(MIN_PBKDF2_ITERATIONS, MAX_PBKDF2_ITERATIONS)
+            // Strictly reject iterations outside acceptable bounds instead of coerceIn()
+            if (!root.has("iterations")) {
+                throw InvalidPasswordException("Uszkodzony plik kopii: brak parametru liczby iteracji (iterations).")
+            }
+            val iterations = root.getInt("iterations")
+            if (iterations < MIN_PBKDF2_ITERATIONS || iterations > MAX_PBKDF2_ITERATIONS) {
+                throw InvalidPasswordException(
+                    "Nieprawidłowa lub niebezpieczna liczba iteracji PBKDF2 ($iterations). Dozwolony zakres to $MIN_PBKDF2_ITERATIONS–$MAX_PBKDF2_ITERATIONS."
+                )
+            }
 
             if (saltBase64.isBlank() || ivBase64.isBlank() || payloadBase64.isBlank()) {
                 throw InvalidPasswordException("Uszkodzony plik zaszyfrowanej kopii.")
@@ -314,142 +329,145 @@ class BackupManager(
 
     suspend fun restoreBackupFromJson(jsonString: String): RestoreResult = withContext(Dispatchers.IO) {
         try {
-            val root = JSONObject(jsonString)
-
-            // Build exercises lookup to resolve exerciseId by name (Fixes Item #6)
-            val dbExercises = exerciseDao.getAllExercisesList()
-            val dbExerciseByName = dbExercises.associateBy { it.name.trim().lowercase() }
-            val dbExerciseById = dbExercises.associateBy { it.id }
-
-            val exerciseIdMap = mutableMapOf<Long, Long>()
-            val backupExercisesArray = root.optJSONArray("exercises")
-            if (backupExercisesArray != null) {
-                for (i in 0 until backupExercisesArray.length()) {
-                    val bExObj = backupExercisesArray.getJSONObject(i)
-                    val bId = bExObj.optLong("id", -1)
-                    val bName = bExObj.optString("name", "").trim().lowercase()
-                    if (bId > 0 && bName.isNotEmpty()) {
-                        val matchingDbEx = dbExerciseByName[bName]
-                        if (matchingDbEx != null) {
-                            exerciseIdMap[bId] = matchingDbEx.id
-                        }
-                    }
-                }
-            }
-
-            // 1. Validate & Parse Sessions (Fixes Item #5)
-            val sessionsList = mutableListOf<WorkoutSession>()
-            val sessionsArray = root.optJSONArray("sessions")
-            if (sessionsArray != null) {
-                for (i in 0 until sessionsArray.length()) {
-                    val sObj = sessionsArray.getJSONObject(i)
-                    if (!sObj.has("workoutName") || !sObj.has("startTime")) {
-                        throw IllegalArgumentException("Uszkodzony rekord sesji treningowej (brak wymaganych pól).")
-                    }
-                    val workoutName = sObj.getString("workoutName")
-                    if (workoutName.isBlank()) {
-                        throw IllegalArgumentException("Nazwa treningu nie może być pusta.")
-                    }
-                    val startTime = sObj.getLong("startTime")
-
-                    sessionsList.add(
-                        WorkoutSession(
-                            id = sObj.optLong("id", 0),
-                            workoutName = workoutName,
-                            startTime = startTime,
-                            endTime = sObj.optLong("endTime", 0),
-                            notes = sObj.optString("notes", ""),
-                            durationSeconds = sObj.optLong("durationSeconds", 0)
-                        )
-                    )
-                }
-            }
-
-            // 2. Validate & Parse Set Logs (Fixes Item #5 & #6)
-            val setsList = mutableListOf<WorkoutSetLog>()
-            val setsArray = root.optJSONArray("setLogs")
-            if (setsArray != null) {
-                for (i in 0 until setsArray.length()) {
-                    val stObj = setsArray.getJSONObject(i)
-                    if (!stObj.has("sessionId") || !stObj.has("setNumber")) {
-                        throw IllegalArgumentException("Uszkodzony rekord serii (brak sessionId lub setNumber).")
-                    }
-
-                    val rawExId = stObj.optLong("exerciseId", -1)
-                    val exName = stObj.optString("exerciseName", "").trim().lowercase()
-
-                    // Match exercise accurately by name or mapped ID rather than silently falling back to 1
-                    val resolvedExerciseId: Long = when {
-                        exName.isNotEmpty() && dbExerciseByName.containsKey(exName) -> {
-                            dbExerciseByName[exName]!!.id
-                        }
-                        exerciseIdMap.containsKey(rawExId) -> {
-                            exerciseIdMap[rawExId]!!
-                        }
-                        dbExerciseById.containsKey(rawExId) -> {
-                            rawExId
-                        }
-                        else -> {
-                            // If exercise does not exist in db, log and map safely
-                            Log.w(TAG, "Exercise '$exName' (ID $rawExId) not found in database; using closest match.")
-                            dbExercises.firstOrNull()?.id ?: 1L
-                        }
-                    }
-
-                    val rirVal = if (stObj.has("rir")) stObj.getDouble("rir").toFloat() else null
-                    val timeSecVal = if (stObj.has("timeSeconds")) stObj.getInt("timeSeconds") else null
-                    val distVal = if (stObj.has("distanceMeters")) stObj.getDouble("distanceMeters").toFloat() else null
-
-                    setsList.add(
-                        WorkoutSetLog(
-                            id = stObj.optLong("id", 0),
-                            sessionId = stObj.getLong("sessionId"),
-                            exerciseId = resolvedExerciseId,
-                            setNumber = stObj.getInt("setNumber"),
-                            weightKg = stObj.optDouble("weightKg", 0.0).toFloat(),
-                            reps = stObj.optInt("reps", 10),
-                            timeSeconds = timeSecVal,
-                            distanceMeters = distVal,
-                            rir = rirVal,
-                            isCompleted = stObj.optBoolean("isCompleted", true),
-                            timestamp = stObj.optLong("timestamp", System.currentTimeMillis()),
-                            notes = stObj.optString("notes", "")
-                        )
-                    )
-                }
-            }
-
-            // 3. Validate & Parse Body Measurements (Fixes Item #5)
-            val measurementsList = mutableListOf<BodyMeasurement>()
-            val measurementsArray = root.optJSONArray("measurements")
-            if (measurementsArray != null) {
-                for (i in 0 until measurementsArray.length()) {
-                    val mObj = measurementsArray.getJSONObject(i)
-                    if (!mObj.has("timestamp")) {
-                        throw IllegalArgumentException("Uszkodzony rekord pomiaru (brak znacznika czasu).")
-                    }
-
-                    measurementsList.add(
-                        BodyMeasurement(
-                            id = mObj.optLong("id", 0),
-                            timestamp = mObj.getLong("timestamp"),
-                            weightKg = if (mObj.has("weightKg")) mObj.getDouble("weightKg").toFloat() else null,
-                            bodyFatPercentage = if (mObj.has("bodyFatPercentage")) mObj.getDouble("bodyFatPercentage").toFloat() else null,
-                            chestCm = if (mObj.has("chestCm")) mObj.getDouble("chestCm").toFloat() else null,
-                            waistCm = if (mObj.has("waistCm")) mObj.getDouble("waistCm").toFloat() else null,
-                            bicepsCm = if (mObj.has("bicepsCm")) mObj.getDouble("bicepsCm").toFloat() else null,
-                            hipsCm = if (mObj.has("hipsCm")) mObj.getDouble("hipsCm").toFloat() else null,
-                            thighsCm = if (mObj.has("thighsCm")) mObj.getDouble("thighsCm").toFloat() else null,
-                            calvesCm = if (mObj.has("calvesCm")) mObj.getDouble("calvesCm").toFloat() else null,
-                            shouldersCm = if (mObj.has("shouldersCm")) mObj.getDouble("shouldersCm").toFloat() else null,
-                            notes = mObj.optString("notes", "")
-                        )
-                    )
-                }
-            }
-
-            // 4. Atomic Database Transaction (Fixes Item #2)
+            // Entire restore wrapped atomically in database.withTransaction
             database.withTransaction {
+                val root = JSONObject(jsonString)
+
+                // Build exercises lookup to resolve exerciseId by name (Fixes Item #6)
+                val dbExercises = exerciseDao.getAllExercisesList()
+                val dbExerciseByName = dbExercises.associateBy { it.name.trim().lowercase() }
+                val dbExerciseById = dbExercises.associateBy { it.id }
+
+                val exerciseIdMap = mutableMapOf<Long, Long>()
+                val backupExercisesArray = root.optJSONArray("exercises")
+                if (backupExercisesArray != null) {
+                    for (i in 0 until backupExercisesArray.length()) {
+                        val bExObj = backupExercisesArray.getJSONObject(i)
+                        val bId = bExObj.optLong("id", -1)
+                        val bName = bExObj.optString("name", "").trim().lowercase()
+                        if (bId > 0 && bName.isNotEmpty()) {
+                            val matchingDbEx = dbExerciseByName[bName]
+                            if (matchingDbEx != null) {
+                                exerciseIdMap[bId] = matchingDbEx.id
+                            }
+                        }
+                    }
+                }
+
+                // 1. Validate & Parse Sessions (Fixes Item #5)
+                val sessionsList = mutableListOf<WorkoutSession>()
+                val sessionsArray = root.optJSONArray("sessions")
+                if (sessionsArray != null) {
+                    for (i in 0 until sessionsArray.length()) {
+                        val sObj = sessionsArray.getJSONObject(i)
+                        if (!sObj.has("workoutName") || !sObj.has("startTime")) {
+                            throw IllegalArgumentException("Uszkodzony rekord sesji treningowej (brak wymaganych pól).")
+                        }
+                        val workoutName = sObj.getString("workoutName")
+                        if (workoutName.isBlank()) {
+                            throw IllegalArgumentException("Nazwa treningu nie może być pusta.")
+                        }
+                        val startTime = sObj.getLong("startTime")
+
+                        sessionsList.add(
+                            WorkoutSession(
+                                id = sObj.optLong("id", 0),
+                                workoutName = workoutName,
+                                startTime = startTime,
+                                endTime = sObj.optLong("endTime", 0),
+                                notes = sObj.optString("notes", ""),
+                                durationSeconds = sObj.optLong("durationSeconds", 0)
+                            )
+                        )
+                    }
+                }
+
+                // 2. Validate & Parse Set Logs (Fixes Item #3 & #6)
+                val setsList = mutableListOf<WorkoutSetLog>()
+                val setsArray = root.optJSONArray("setLogs")
+                if (setsArray != null) {
+                    for (i in 0 until setsArray.length()) {
+                        val stObj = setsArray.getJSONObject(i)
+                        if (!stObj.has("sessionId") || !stObj.has("setNumber")) {
+                            throw IllegalArgumentException("Uszkodzony rekord serii (brak sessionId lub setNumber).")
+                        }
+
+                        val rawExId = stObj.optLong("exerciseId", -1)
+                        val exName = stObj.optString("exerciseName", "").trim().lowercase()
+
+                        // Match exercise accurately by name or mapped ID.
+                        // NEVER fallback to firstOrNull() — throw explicit error to prevent corrupting training data.
+                        val resolvedExerciseId: Long = when {
+                            exName.isNotEmpty() && dbExerciseByName.containsKey(exName) -> {
+                                dbExerciseByName[exName]!!.id
+                            }
+                            exerciseIdMap.containsKey(rawExId) -> {
+                                exerciseIdMap[rawExId]!!
+                            }
+                            dbExerciseById.containsKey(rawExId) -> {
+                                rawExId
+                            }
+                            else -> {
+                                val identifier = if (exName.isNotEmpty()) "'$exName'" else "o ID $rawExId"
+                                throw IllegalArgumentException(
+                                    "Kopia zapasowa zawiera ćwiczenie $identifier, które nie istnieje w bazie danych. Import przerwany w celu ochrony spójności danych."
+                                )
+                            }
+                        }
+
+                        val rirVal = if (stObj.has("rir")) stObj.getDouble("rir").toFloat() else null
+                        val timeSecVal = if (stObj.has("timeSeconds")) stObj.getInt("timeSeconds") else null
+                        val distVal = if (stObj.has("distanceMeters")) stObj.getDouble("distanceMeters").toFloat() else null
+
+                        setsList.add(
+                            WorkoutSetLog(
+                                id = stObj.optLong("id", 0),
+                                sessionId = stObj.getLong("sessionId"),
+                                exerciseId = resolvedExerciseId,
+                                setNumber = stObj.getInt("setNumber"),
+                                weightKg = stObj.optDouble("weightKg", 0.0).toFloat(),
+                                reps = stObj.optInt("reps", 10),
+                                timeSeconds = timeSecVal,
+                                distanceMeters = distVal,
+                                rir = rirVal,
+                                isCompleted = stObj.optBoolean("isCompleted", true),
+                                timestamp = stObj.optLong("timestamp", System.currentTimeMillis()),
+                                notes = stObj.optString("notes", "")
+                            )
+                        )
+                    }
+                }
+
+                // 3. Validate & Parse Body Measurements (Fixes Item #5)
+                val measurementsList = mutableListOf<BodyMeasurement>()
+                val measurementsArray = root.optJSONArray("measurements")
+                if (measurementsArray != null) {
+                    for (i in 0 until measurementsArray.length()) {
+                        val mObj = measurementsArray.getJSONObject(i)
+                        if (!mObj.has("timestamp")) {
+                            throw IllegalArgumentException("Uszkodzony rekord pomiaru (brak znacznika czasu).")
+                        }
+
+                        measurementsList.add(
+                            BodyMeasurement(
+                                id = mObj.optLong("id", 0),
+                                timestamp = mObj.getLong("timestamp"),
+                                weightKg = if (mObj.has("weightKg")) mObj.getDouble("weightKg").toFloat() else null,
+                                bodyFatPercentage = if (mObj.has("bodyFatPercentage")) mObj.getDouble("bodyFatPercentage").toFloat() else null,
+                                chestCm = if (mObj.has("chestCm")) mObj.getDouble("chestCm").toFloat() else null,
+                                waistCm = if (mObj.has("waistCm")) mObj.getDouble("waistCm").toFloat() else null,
+                                bicepsCm = if (mObj.has("bicepsCm")) mObj.getDouble("bicepsCm").toFloat() else null,
+                                hipsCm = if (mObj.has("hipsCm")) mObj.getDouble("hipsCm").toFloat() else null,
+                                thighsCm = if (mObj.has("thighsCm")) mObj.getDouble("thighsCm").toFloat() else null,
+                                calvesCm = if (mObj.has("calvesCm")) mObj.getDouble("calvesCm").toFloat() else null,
+                                shouldersCm = if (mObj.has("shouldersCm")) mObj.getDouble("shouldersCm").toFloat() else null,
+                                notes = mObj.optString("notes", "")
+                            )
+                        )
+                    }
+                }
+
+                // 4. Insert into database inside this atomic transaction
                 if (sessionsList.isNotEmpty()) {
                     workoutDao.insertSessions(sessionsList)
                 }
@@ -459,15 +477,15 @@ class BackupManager(
                 if (measurementsList.isNotEmpty()) {
                     bodyMeasurementDao.insertAll(measurementsList)
                 }
-            }
 
-            RestoreResult(
-                sessionsCount = sessionsList.size,
-                setsCount = setsList.size,
-                measurementsCount = measurementsList.size,
-                isSuccess = true,
-                message = "Przywrócono pomyślnie: ${sessionsList.size} treningów, ${setsList.size} serii, ${measurementsList.size} pomiarów."
-            )
+                RestoreResult(
+                    sessionsCount = sessionsList.size,
+                    setsCount = setsList.size,
+                    measurementsCount = measurementsList.size,
+                    isSuccess = true,
+                    message = "Przywrócono pomyślnie: ${sessionsList.size} treningów, ${setsList.size} serii, ${measurementsList.size} pomiarów."
+                )
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error restoring backup from JSON", e)
             RestoreResult(isSuccess = false, message = "Nieprawidłowy format pliku kopii: ${e.localizedMessage}")
