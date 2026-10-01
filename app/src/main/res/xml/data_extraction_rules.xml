@@ -5,10 +5,14 @@
 -->
 <data-extraction-rules>
     <cloud-backup>
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
         <!-- Exclude user photos and videos from auto backup to keep backups lightweight -->
         <exclude domain="file" path="exercise_media" />
     </cloud-backup>
     <device-transfer>
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
         <exclude domain="file" path="exercise_media" />
     </device-transfer>
 </data-extraction-rules>
