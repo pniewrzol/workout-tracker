@@ -20,6 +20,12 @@ interface ExerciseDao {
     @Query("SELECT * FROM exercises WHERE section = :section ORDER BY id ASC")
     fun getExercisesBySection(section: String): Flow<List<Exercise>>
 
+    @Query("SELECT * FROM exercises WHERE planId = :planId ORDER BY id ASC")
+    fun getExercisesByPlanId(planId: Long): Flow<List<Exercise>>
+
+    @Query("SELECT DISTINCT section FROM exercises WHERE planId = :planId AND section NOT IN ('Rozgrzewka', 'Mobilizacja')")
+    fun getWorkoutsForPlan(planId: Long): Flow<List<String>>
+
     @Query("SELECT * FROM exercises WHERE id = :id LIMIT 1")
     fun getExerciseById(id: Long): Flow<Exercise?>
 

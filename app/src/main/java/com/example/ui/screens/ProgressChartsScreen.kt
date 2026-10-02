@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessibilityNew
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.FitnessCenter
@@ -46,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -55,6 +57,7 @@ import com.example.data.model.Exercise
 import com.example.data.model.WorkoutSetLog
 import com.example.ui.components.ChartPoint
 import com.example.ui.components.LineChartComposable
+import com.example.ui.components.MuscleMapView
 import com.example.ui.theme.AthleticOrange
 import com.example.ui.theme.ElectricCyan
 import com.example.ui.theme.GoldPr
@@ -67,6 +70,7 @@ fun ProgressChartsScreen(
     exercises: List<Exercise>,
     allCompletedSets: List<WorkoutSetLog>,
     getChartPoints: (List<WorkoutSetLog>, ChartMetric) -> List<ChartPoint>,
+    latestMeasurement: com.example.data.model.BodyMeasurement? = null,
     modifier: Modifier = Modifier
 ) {
     // Default to an exercise that likely has weights, e.g. Military press or Sumo deadlift
@@ -80,6 +84,7 @@ fun ProgressChartsScreen(
 
     var isDropdownExpanded by remember { mutableStateOf(false) }
     var selectedMetricIndex by remember { mutableIntStateOf(0) }
+    var selectedMainTab by remember { mutableIntStateOf(0) }
 
     val isDist = selectedExercise?.isDistanceBased() == true
     val isTime = selectedExercise?.isTimeBased() == true
@@ -153,9 +158,40 @@ fun ProgressChartsScreen(
             )
         }
 
-        // Exercise Selector Dropdown / Card
         item {
-            Box(modifier = Modifier.fillMaxWidth()) {
+            TabRow(
+                selectedTabIndex = selectedMainTab,
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                contentColor = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clip(RoundedCornerShape(12.dp))
+            ) {
+                Tab(
+                    selected = selectedMainTab == 0,
+                    onClick = { selectedMainTab = 0 },
+                    text = { Text("Wykresy Ćwiczeń", fontWeight = FontWeight.SemiBold) },
+                    icon = { Icon(Icons.Default.ShowChart, contentDescription = null) }
+                )
+                Tab(
+                    selected = selectedMainTab == 1,
+                    onClick = { selectedMainTab = 1 },
+                    text = { Text("Mapa Mięśni", fontWeight = FontWeight.SemiBold) },
+                    icon = { Icon(Icons.Default.AccessibilityNew, contentDescription = null) }
+                )
+            }
+        }
+
+        if (selectedMainTab == 1) {
+            item {
+                MuscleMapView(
+                    exercises = exercises,
+                    completedSets = allCompletedSets,
+                    latestMeasurement = latestMeasurement
+                )
+            }
+        } else {
+            // Exercise Selector Dropdown / Card
+            item {
+                Box(modifier = Modifier.fillMaxWidth()) {
                 OutlinedCard(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -420,6 +456,7 @@ fun ProgressChartsScreen(
                     )
                 }
             }
+        }
         }
     }
 }

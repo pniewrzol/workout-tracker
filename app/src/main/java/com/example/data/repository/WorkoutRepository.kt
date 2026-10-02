@@ -8,10 +8,12 @@ import com.example.data.db.BodyMeasurementDao
 import com.example.data.db.ExerciseDao
 import com.example.data.db.MediaDao
 import com.example.data.db.WorkoutDao
+import com.example.data.db.WorkoutPlanDao
 import com.example.data.model.BodyMeasurement
 import com.example.data.model.Exercise
 import com.example.data.model.ExerciseMedia
 import com.example.data.model.InitialWorkoutData
+import com.example.data.model.WorkoutPlan
 import com.example.data.model.WorkoutSession
 import com.example.data.model.WorkoutSetLog
 import kotlinx.coroutines.Dispatchers
@@ -27,7 +29,8 @@ class WorkoutRepository(
     private val exerciseDao: ExerciseDao = database.exerciseDao(),
     private val mediaDao: MediaDao = database.mediaDao(),
     private val workoutDao: WorkoutDao = database.workoutDao(),
-    private val bodyMeasurementDao: BodyMeasurementDao = database.bodyMeasurementDao()
+    private val bodyMeasurementDao: BodyMeasurementDao = database.bodyMeasurementDao(),
+    private val workoutPlanDao: WorkoutPlanDao = database.workoutPlanDao()
 ) {
 
     constructor(
@@ -51,6 +54,8 @@ class WorkoutRepository(
     val allCompletedSets: Flow<List<WorkoutSetLog>> = workoutDao.getAllCompletedSets()
     val allMeasurements: Flow<List<BodyMeasurement>> = bodyMeasurementDao.getAllMeasurements()
     val allMeasurementsAsc: Flow<List<BodyMeasurement>> = bodyMeasurementDao.getAllMeasurementsAsc()
+    val allPlans: Flow<List<WorkoutPlan>> = workoutPlanDao.getAllPlansFlow()
+    val activePlan: Flow<WorkoutPlan?> = workoutPlanDao.getActivePlanFlow()
 
     val backupManager = BackupManager(context, database)
 
@@ -407,5 +412,45 @@ class WorkoutRepository(
 
     fun getCompletedSetsForExercise(exerciseId: Long): Flow<List<WorkoutSetLog>> {
         return workoutDao.getCompletedSetsForExercise(exerciseId)
+    }
+
+    suspend fun createPlan(name: String, description: String = ""): Long = withContext(Dispatchers.IO) {
+        val plan = WorkoutPlan(
+            name = name,
+            description = description,
+            createdAt = System.currentTimeMillis(),
+            isActive = true
+        )
+        val id = workoutPlanDao.insertPlan(plan)
+        workoutPlanDao.setActivePlan(id)
+        id
+    }
+
+    suspend fun setActivePlan(planId: Long) = withContext(Dispatchers.IO) {
+        workoutPlanDao.setActivePlan(planId)
+    }
+
+    suspend fun deletePlan(plan: WorkoutPlan) = withContext(Dispatchers.IO) {
+        workoutPlanDao.deletePlan(plan)
+        val remaining = workoutPlanDao.getAllPlansList()
+        if (remaining.isNotEmpty()) {
+            workoutPlanDao.setActivePlan(remaining.first().id)
+        }
+    }
+
+    suspend fun createCustomExercise(exercise: Exercise): Long = withContext(Dispatchers.IO) {
+        exerciseDao.insertExercise(exercise)
+    }
+
+    suspend fun insertBodyMeasurement(measurement: BodyMeasurement): Long = withContext(Dispatchers.IO) {
+        bodyMeasurementDao.insert(measurement)
+    }
+
+    suspend fun updateBodyMeasurement(measurement: BodyMeasurement) = withContext(Dispatchers.IO) {
+        bodyMeasurementDao.update(measurement)
+    }
+
+    suspend fun deleteBodyMeasurement(measurement: BodyMeasurement) = withContext(Dispatchers.IO) {
+        bodyMeasurementDao.delete(measurement)
     }
 }

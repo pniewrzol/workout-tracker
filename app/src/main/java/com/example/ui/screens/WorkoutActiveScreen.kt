@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,10 +31,16 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -94,6 +101,10 @@ fun WorkoutActiveScreen(
     onDismissTimer: () -> Unit,
     onStartTimer: (Int) -> Unit = {},
     onExerciseDetailsClick: (Long) -> Unit,
+    onMinimize: () -> Unit = {},
+    onNavigateToExercises: () -> Unit = {},
+    onNavigateToHistory: () -> Unit = {},
+    onNavigateToMeasurements: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showFinishDialog by remember { mutableStateOf(false) }
@@ -110,9 +121,9 @@ fun WorkoutActiveScreen(
         }
     }
 
-    // Intercept back button to prevent accidental exit
+    // Intercept back button to minimize workout rather than exit or discard
     BackHandler {
-        showDiscardDialog = true
+        onMinimize()
     }
 
     val elapsedMinutes = elapsedSeconds / 60
@@ -158,6 +169,17 @@ fun WorkoutActiveScreen(
     Scaffold(
         topBar = {
             TopAppBar(
+                navigationIcon = {
+                    IconButton(
+                        onClick = onMinimize,
+                        modifier = Modifier.testTag("btn_minimize_workout")
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Zminimalizuj trening do paska"
+                        )
+                    }
+                },
                 title = {
                     Column {
                         Text(
@@ -252,6 +274,47 @@ fun WorkoutActiveScreen(
                             )
                         }
                     }
+                }
+            }
+
+            // Quick navigation chips to browse app without interrupting workout
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    AssistChip(
+                        onClick = onMinimize,
+                        label = { Text("Pulpit", fontSize = 11.sp) },
+                        leadingIcon = { Icon(Icons.Default.Home, null, Modifier.size(14.dp)) },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        )
+                    )
+                    AssistChip(
+                        onClick = onNavigateToExercises,
+                        label = { Text("Ćwiczenia", fontSize = 11.sp) },
+                        leadingIcon = { Icon(Icons.Default.FitnessCenter, null, Modifier.size(14.dp)) },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        )
+                    )
+                    AssistChip(
+                        onClick = onNavigateToHistory,
+                        label = { Text("Historia", fontSize = 11.sp) },
+                        leadingIcon = { Icon(Icons.Default.History, null, Modifier.size(14.dp)) },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        )
+                    )
+                    AssistChip(
+                        onClick = onNavigateToMeasurements,
+                        label = { Text("Pomiary", fontSize = 11.sp) },
+                        leadingIcon = { Icon(Icons.Default.Straighten, null, Modifier.size(14.dp)) },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        )
+                    )
                 }
             }
 

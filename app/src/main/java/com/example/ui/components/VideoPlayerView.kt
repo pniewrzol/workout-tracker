@@ -47,6 +47,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.FileProvider
 import java.io.File
@@ -58,8 +60,11 @@ fun VideoPlayerView(
     autoPlay: Boolean = false
 ) {
     val context = LocalContext.current
+    val audioFocusHelper = remember { AudioFocusHelper(context) }
     var isPlaying by remember { mutableStateOf(false) }
     var isPrepared by remember { mutableStateOf(false) }
+    var isMuted by remember { mutableStateOf(false) }
+    var mediaPlayerRef by remember { mutableStateOf<android.media.MediaPlayer?>(null) }
     var videoViewRef by remember { mutableStateOf<VideoView?>(null) }
 
     val fileUri = remember(videoPathOrUri) {
@@ -78,6 +83,7 @@ fun VideoPlayerView(
     DisposableEffect(Unit) {
         onDispose {
             videoViewRef?.stopPlayback()
+            audioFocusHelper.abandonFocus()
         }
     }
 
@@ -109,9 +115,16 @@ fun VideoPlayerView(
                         }
 
                         setOnPreparedListener { mp ->
+                            mediaPlayerRef = mp
                             isPrepared = true
-                            mp.isLooping = true
+                            mp.isLooping = false
+                            if (isMuted) {
+                                mp.setVolume(0f, 0f)
+                            }
                             if (autoPlay) {
+                                if (!isMuted) {
+                                    audioFocusHelper.requestFocus()
+                                }
                                 start()
                                 isPlaying = true
                             }
@@ -119,11 +132,13 @@ fun VideoPlayerView(
 
                         setOnCompletionListener {
                             isPlaying = false
+                            audioFocusHelper.abandonFocus()
                         }
 
                         setOnErrorListener { _, _, _ ->
                             isPrepared = false
                             isPlaying = false
+                            audioFocusHelper.abandonFocus()
                             true
                         }
 
@@ -149,6 +164,9 @@ fun VideoPlayerView(
                 ) {
                     IconButton(
                         onClick = {
+                            if (!isMuted) {
+                                audioFocusHelper.requestFocus()
+                            }
                             videoViewRef?.start()
                             isPlaying = true
                         },
@@ -181,7 +199,11 @@ fun VideoPlayerView(
                             if (vv.isPlaying) {
                                 vv.pause()
                                 isPlaying = false
+                                audioFocusHelper.abandonFocus()
                             } else {
+                                if (!isMuted) {
+                                    audioFocusHelper.requestFocus()
+                                }
                                 vv.start()
                                 isPlaying = true
                             }
@@ -199,6 +221,9 @@ fun VideoPlayerView(
                     onClick = {
                         videoViewRef?.let { vv ->
                             vv.seekTo(0)
+                            if (!isMuted) {
+                                audioFocusHelper.requestFocus()
+                            }
                             vv.start()
                             isPlaying = true
                         }
@@ -208,6 +233,29 @@ fun VideoPlayerView(
                         imageVector = Icons.Default.Replay,
                         contentDescription = "Od nowa",
                         tint = Color.White
+                    )
+                }
+
+                IconButton(
+                    onClick = {
+                        isMuted = !isMuted
+                        mediaPlayerRef?.let { mp ->
+                            if (isMuted) {
+                                mp.setVolume(0f, 0f)
+                                audioFocusHelper.abandonFocus()
+                            } else {
+                                mp.setVolume(1f, 1f)
+                                if (isPlaying) {
+                                    audioFocusHelper.requestFocus()
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    Icon(
+                        imageVector = if (isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                        contentDescription = if (isMuted) "Wyłącz wyciszenie" else "Wycisz",
+                        tint = if (isMuted) MaterialTheme.colorScheme.error else Color.White
                     )
                 }
             }

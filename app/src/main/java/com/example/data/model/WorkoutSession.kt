@@ -16,4 +16,7 @@ data class WorkoutSession(
     val isMainWorkout: Boolean
         get() = !workoutName.contains("Rozgrzewka", ignoreCase = true) &&
                 !workoutName.contains("Mobilizacja", ignoreCase = true)
+
+    val isCompleted: Boolean
+        get() = endTime > 0
 }

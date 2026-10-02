@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.model.BodyMeasurement
 import com.example.data.model.Exercise
 import com.example.data.model.ExerciseMedia
+import com.example.data.model.WorkoutPlan
 import com.example.data.model.WorkoutSession
 import com.example.data.model.WorkoutSetLog
 import com.example.data.repository.RestoreResult
@@ -108,6 +109,12 @@ class WorkoutViewModel(
     val allMeasurementsAsc: StateFlow<List<BodyMeasurement>> = repository.allMeasurementsAsc
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val allPlans: StateFlow<List<WorkoutPlan>> = repository.allPlans
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val activePlan: StateFlow<WorkoutPlan?> = repository.activePlan
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     // Active session sets
     @OptIn(ExperimentalCoroutinesApi::class)
     val activeSessionSets: StateFlow<List<WorkoutSetLog>> = activeSession
@@ -167,9 +174,52 @@ class WorkoutViewModel(
         _isRestTimerActive.value = false
     }
 
-    fun startWorkout(workoutName: String, exercises: List<Exercise>) {
+    fun startWorkout(workoutName: String, exercises: List<Exercise>, onStarted: (() -> Unit)? = null) {
         viewModelScope.launch {
             repository.startWorkoutSession(workoutName, exercises)
+            onStarted?.invoke()
+        }
+    }
+
+    fun createPlan(name: String, description: String = "") {
+        viewModelScope.launch {
+            repository.createPlan(name, description)
+        }
+    }
+
+    fun setActivePlan(planId: Long) {
+        viewModelScope.launch {
+            repository.setActivePlan(planId)
+        }
+    }
+
+    fun deletePlan(plan: WorkoutPlan) {
+        viewModelScope.launch {
+            repository.deletePlan(plan)
+        }
+    }
+
+    fun createCustomExercise(exercise: Exercise) {
+        viewModelScope.launch {
+            repository.createCustomExercise(exercise)
+        }
+    }
+
+    fun addBodyMeasurement(measurement: BodyMeasurement) {
+        viewModelScope.launch {
+            repository.insertBodyMeasurement(measurement)
+        }
+    }
+
+    fun updateBodyMeasurement(measurement: BodyMeasurement) {
+        viewModelScope.launch {
+            repository.updateBodyMeasurement(measurement)
+        }
+    }
+
+    fun deleteBodyMeasurement(measurement: BodyMeasurement) {
+        viewModelScope.launch {
+            repository.deleteBodyMeasurement(measurement)
         }
     }
 
@@ -258,19 +308,6 @@ class WorkoutViewModel(
     fun deleteMedia(media: ExerciseMedia) {
         viewModelScope.launch {
             repository.deleteMedia(media)
-        }
-    }
-
-    // Body Measurements
-    fun addBodyMeasurement(measurement: BodyMeasurement) {
-        viewModelScope.launch {
-            repository.insertMeasurement(measurement)
-        }
-    }
-
-    fun deleteBodyMeasurement(measurement: BodyMeasurement) {
-        viewModelScope.launch {
-            repository.deleteMeasurement(measurement)
         }
     }
 

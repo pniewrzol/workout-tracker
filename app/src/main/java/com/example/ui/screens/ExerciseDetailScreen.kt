@@ -77,6 +77,11 @@ import com.example.data.model.WorkoutSetLog
 import com.example.ui.components.ChartPoint
 import com.example.ui.components.LineChartComposable
 import com.example.ui.components.MediaViewerDialog
+import com.example.ui.components.PhotoThumbnailView
+import com.example.ui.components.VideoThumbnailView
+import com.example.ui.components.AnatomicalBodyCanvas
+import com.example.ui.components.MuscleGroup
+import com.example.ui.components.MuscleActivity
 import com.example.ui.theme.AthleticOrange
 import com.example.ui.theme.ElectricCyan
 import com.example.ui.theme.GoldPr
@@ -448,6 +453,76 @@ fun ExerciseDetailScreen(
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Visual Anatomical Muscular Silhouette for this exercise
+                        val textToMatch = "${exercise.name} ${exercise.bodyPart} ${exercise.primaryMuscles} ${exercise.secondaryMuscles}".lowercase()
+                        val activeMuscles = remember(exercise) {
+                            val map = mutableMapOf<MuscleGroup, MuscleActivity>()
+                            MuscleGroup.entries.forEach { m ->
+                                val hit = when (m) {
+                                    MuscleGroup.CHEST -> textToMatch.contains("klatka") || textToMatch.contains("piersiow") || textToMatch.contains("chest") || textToMatch.contains("wyciskanie")
+                                    MuscleGroup.SHOULDERS -> textToMatch.contains("bark") || textToMatch.contains("naramienn") || textToMatch.contains("żołnierskie")
+                                    MuscleGroup.BICEPS -> textToMatch.contains("biceps") || textToMatch.contains("ramienn")
+                                    MuscleGroup.TRICEPS -> textToMatch.contains("triceps") || textToMatch.contains("francuskie")
+                                    MuscleGroup.ABS -> textToMatch.contains("brzuch") || textToMatch.contains("core") || textToMatch.contains("plank")
+                                    MuscleGroup.BACK -> textToMatch.contains("plecy") || textToMatch.contains("najszersz") || textToMatch.contains("wiosłow") || textToMatch.contains("podciąganie")
+                                    MuscleGroup.QUADS -> textToMatch.contains("czworo") || textToMatch.contains("przysiad") || textToMatch.contains("wykroki")
+                                    MuscleGroup.HAMSTRINGS -> textToMatch.contains("dwugłow") || textToMatch.contains("kulszow") || textToMatch.contains("martwy ciąg")
+                                    MuscleGroup.GLUTES -> textToMatch.contains("poślad") || textToMatch.contains("hip thrust")
+                                    MuscleGroup.CALVES -> textToMatch.contains("łydk") || textToMatch.contains("brzuchat")
+                                    MuscleGroup.FOREARMS -> textToMatch.contains("przedramion")
+                                }
+                                map[m] = MuscleActivity(m, setsCount = if (hit) 12 else 0, totalTonnage = 0f, exerciseNames = listOf(exercise.name))
+                            }
+                            map
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(160.dp)
+                                .background(Color(0xFF0A0F1D), RoundedCornerShape(12.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("Widok z przodu", fontSize = 10.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.Bold)
+                                    Box(modifier = Modifier.size(100.dp, 130.dp)) {
+                                        AnatomicalBodyCanvas(
+                                            isFront = true,
+                                            activities = activeMuscles,
+                                            selectedMuscle = null,
+                                            onSelectMuscle = {}
+                                        )
+                                    }
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .width(1.dp)
+                                        .height(110.dp)
+                                        .background(Color(0xFF1E293B))
+                                )
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("Widok z tyłu", fontSize = 10.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.Bold)
+                                    Box(modifier = Modifier.size(100.dp, 130.dp)) {
+                                        AnatomicalBodyCanvas(
+                                            isFront = false,
+                                            activities = activeMuscles,
+                                            selectedMuscle = null,
+                                            onSelectMuscle = {}
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -611,30 +686,15 @@ fun MediaThumbnailCard(
             contentAlignment = Alignment.Center
         ) {
             if (media.mediaType == "IMAGE") {
-                SubcomposeAsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data(File(media.uriString))
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = media.caption,
-                    contentScale = ContentScale.Crop,
+                PhotoThumbnailView(
+                    imagePathOrUri = media.uriString,
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
-                // Video thumbnail background with movie badge
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color(0xFF1E293B)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayCircle,
-                        contentDescription = "Odtwórz wideo",
-                        tint = Color.White,
-                        modifier = Modifier.size(44.dp)
-                    )
-                }
+                VideoThumbnailView(
+                    videoPath = media.uriString,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
 
             // Small badge in bottom corner

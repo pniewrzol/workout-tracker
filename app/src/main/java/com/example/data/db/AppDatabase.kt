@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.data.model.BodyMeasurement
 import com.example.data.model.Exercise
 import com.example.data.model.ExerciseMedia
-import com.example.data.model.InitialWorkoutData
+import com.example.data.model.WorkoutPlan
 import com.example.data.model.WorkoutSession
 import com.example.data.model.WorkoutSetLog
 import kotlinx.coroutines.CoroutineScope
@@ -22,9 +22,10 @@ import kotlinx.coroutines.launch
         ExerciseMedia::class,
         WorkoutSession::class,
         WorkoutSetLog::class,
-        BodyMeasurement::class
+        BodyMeasurement::class,
+        WorkoutPlan::class
     ],
-    version = 3,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -32,6 +33,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun mediaDao(): MediaDao
     abstract fun workoutDao(): WorkoutDao
     abstract fun bodyMeasurementDao(): BodyMeasurementDao
+    abstract fun workoutPlanDao(): WorkoutPlanDao
 
     companion object {
         @Volatile
@@ -91,6 +93,35 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfNotExists(db, "body_measurements", "frontPhotoUri", "TEXT")
+                addColumnIfNotExists(db, "body_measurements", "backPhotoUri", "TEXT")
+                addColumnIfNotExists(db, "body_measurements", "sidePhotoUri", "TEXT")
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `workout_plans` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `description` TEXT NOT NULL DEFAULT '',
+                        `createdAt` INTEGER NOT NULL,
+                        `isActive` INTEGER NOT NULL DEFAULT 1
+                    )
+                """.trimIndent())
+
+                db.execSQL("""
+                    INSERT OR IGNORE INTO `workout_plans` (`id`, `name`, `description`, `createdAt`, `isActive`)
+                    VALUES (1, 'Plan Główny (A/B/C)', 'Domyślny 3-dniowy plan FBW z rozgrzewką i mobilizacją', 0, 1)
+                """.trimIndent())
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfNotExists(db, "exercises", "planId", "INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -98,8 +129,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "workout_tracker_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
-                    // Removed fallbackToDestructiveMigration() to protect existing user workout data
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .addCallback(AppDatabaseCallback(scope))
                     .build()
                 INSTANCE = instance
@@ -112,7 +142,12 @@ abstract class AppDatabase : RoomDatabase() {
         ) : RoomDatabase.Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)
-                // Seeding and deduplication is handled deterministically by WorkoutRepository.checkAndSeedExercises()
+                scope.launch(Dispatchers.IO) {
+                    db.execSQL("""
+                        INSERT OR IGNORE INTO `workout_plans` (`id`, `name`, `description`, `createdAt`, `isActive`)
+                        VALUES (1, 'Plan Główny (A/B/C)', 'Domyślny 3-dniowy plan FBW z rozgrzewką i mobilizacją', ${System.currentTimeMillis()}, 1)
+                    """.trimIndent())
+                }
             }
         }
     }

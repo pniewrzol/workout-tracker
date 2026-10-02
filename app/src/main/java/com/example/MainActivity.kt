@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.ShowChart
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -32,10 +34,12 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -109,8 +113,9 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainAppContent(viewModel: WorkoutViewModel) {
-    var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
-    var selectedTab by remember { mutableStateOf<Screen>(Screen.Home) }
+    var currentScreenRoute by rememberSaveable { mutableStateOf("home") }
+    var previousDetailRoute by rememberSaveable { mutableStateOf("home") }
+    var selectedTabRoute by rememberSaveable { mutableStateOf("home") }
 
     val appThemeMode by viewModel.appThemeMode.collectAsStateWithLifecycle()
     val backupPassword by viewModel.backupPassword.collectAsStateWithLifecycle()
@@ -121,6 +126,8 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
     val activeSessionSets by viewModel.activeSessionSets.collectAsStateWithLifecycle()
     val allMeasurements by viewModel.allMeasurements.collectAsStateWithLifecycle()
     val allMeasurementsAsc by viewModel.allMeasurementsAsc.collectAsStateWithLifecycle()
+    val allPlans by viewModel.allPlans.collectAsStateWithLifecycle()
+    val activePlan by viewModel.activePlan.collectAsStateWithLifecycle()
 
     val restTimerSeconds by viewModel.restTimerSeconds.collectAsStateWithLifecycle()
     val isRestTimerActive by viewModel.isRestTimerActive.collectAsStateWithLifecycle()
@@ -129,18 +136,47 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
     val selectedExerciseMedia by viewModel.selectedExerciseMedia.collectAsStateWithLifecycle()
     val selectedExerciseSets by viewModel.selectedExerciseSets.collectAsStateWithLifecycle()
 
+    val currentScreen: Screen = remember(currentScreenRoute) {
+        when {
+            currentScreenRoute == "exercises" -> Screen.Exercises
+            currentScreenRoute == "charts" -> Screen.Charts
+            currentScreenRoute == "history" -> Screen.History
+            currentScreenRoute == "guide" -> Screen.Guide
+            currentScreenRoute == "active_workout" -> Screen.ActiveWorkout
+            currentScreenRoute == "measurements" -> Screen.BodyMeasurements
+            currentScreenRoute == "settings" -> Screen.Settings
+            currentScreenRoute.startsWith("detail_") -> {
+                val id = currentScreenRoute.removePrefix("detail_").toLongOrNull() ?: 1L
+                Screen.ExerciseDetail(id)
+            }
+            else -> Screen.Home
+        }
+    }
+
+    // Intercept back button when not on root home screen
+    BackHandler(enabled = currentScreenRoute != "home") {
+        if (currentScreenRoute.startsWith("detail_")) {
+            currentScreenRoute = previousDetailRoute
+        } else if (currentScreenRoute == "active_workout") {
+            currentScreenRoute = "home"
+        } else {
+            currentScreenRoute = "home"
+            selectedTabRoute = "home"
+        }
+    }
+
     val navItems = listOf(
-        NavigationItem("Pulpit", Icons.Default.Home, Screen.Home, "nav_home"),
-        NavigationItem("Ćwiczenia", Icons.Default.FitnessCenter, Screen.Exercises, "nav_exercises"),
-        NavigationItem("Wykresy", Icons.Default.ShowChart, Screen.Charts, "nav_charts"),
-        NavigationItem("Historia", Icons.Default.History, Screen.History, "nav_history"),
-        NavigationItem("Poradnik", Icons.Default.MenuBook, Screen.Guide, "nav_guide")
+        NavigationItem("Pulpit", Icons.Default.Home, "home", "nav_home"),
+        NavigationItem("Ćwiczenia", Icons.Default.FitnessCenter, "exercises", "nav_exercises"),
+        NavigationItem("Wykresy", Icons.Default.ShowChart, "charts", "nav_charts"),
+        NavigationItem("Historia", Icons.Default.History, "history", "nav_history"),
+        NavigationItem("Poradnik", Icons.Default.MenuBook, "guide", "nav_guide")
     )
 
-    val isFullscreenSubScreen = currentScreen == Screen.ActiveWorkout ||
-            currentScreen is Screen.ExerciseDetail ||
-            currentScreen == Screen.BodyMeasurements ||
-            currentScreen == Screen.Settings
+    val isFullscreenSubScreen = currentScreenRoute == "active_workout" ||
+            currentScreenRoute.startsWith("detail_") ||
+            currentScreenRoute == "measurements" ||
+            currentScreenRoute == "settings"
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -153,7 +189,7 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 12.dp, vertical = 4.dp)
-                                .clickable { currentScreen = Screen.ActiveWorkout },
+                                .clickable { currentScreenRoute = "active_workout" },
                             shape = RoundedCornerShape(12.dp),
                             color = AthleticOrange,
                             shadowElevation = 6.dp
@@ -204,13 +240,13 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                         tonalElevation = 8.dp
                     ) {
                         navItems.forEach { item ->
-                            val isSelected = currentScreen == item.screen
+                            val isSelected = currentScreenRoute == item.route
 
                             NavigationBarItem(
                                 selected = isSelected,
                                 onClick = {
-                                    selectedTab = item.screen
-                                    currentScreen = item.screen
+                                    selectedTabRoute = item.route
+                                    currentScreenRoute = item.route
                                 },
                                 icon = {
                                     Icon(
@@ -250,36 +286,52 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                         completedSessions = completedSessions,
                         allExercises = allExercises,
                         allCompletedSets = allCompletedSets,
+                        allPlans = allPlans,
+                        activePlan = activePlan,
+                        allMeasurements = allMeasurements,
                         onStartWorkout = { workoutName, exercises ->
                             viewModel.startWorkout(workoutName, exercises)
-                            currentScreen = Screen.ActiveWorkout
+                            currentScreenRoute = "active_workout"
                         },
-                        onResumeWorkout = { currentScreen = Screen.ActiveWorkout },
+                        onResumeWorkout = { currentScreenRoute = "active_workout" },
                         onNavigateToExercises = {
-                            selectedTab = Screen.Exercises
-                            currentScreen = Screen.Exercises
+                            selectedTabRoute = "exercises"
+                            currentScreenRoute = "exercises"
                         },
                         onNavigateToCharts = {
-                            selectedTab = Screen.Charts
-                            currentScreen = Screen.Charts
+                            selectedTabRoute = "charts"
+                            currentScreenRoute = "charts"
                         },
                         onNavigateToHistory = {
-                            selectedTab = Screen.History
-                            currentScreen = Screen.History
+                            selectedTabRoute = "history"
+                            currentScreenRoute = "history"
                         },
                         onNavigateToGuide = {
-                            selectedTab = Screen.Guide
-                            currentScreen = Screen.Guide
+                            selectedTabRoute = "guide"
+                            currentScreenRoute = "guide"
                         },
                         onNavigateToMeasurements = {
-                            currentScreen = Screen.BodyMeasurements
+                            currentScreenRoute = "measurements"
                         },
                         onNavigateToSettings = {
-                            currentScreen = Screen.Settings
+                            currentScreenRoute = "settings"
                         },
                         onExerciseClick = { exId ->
+                            previousDetailRoute = "home"
                             viewModel.selectExercise(exId)
-                            currentScreen = Screen.ExerciseDetail(exId)
+                            currentScreenRoute = "detail_$exId"
+                        },
+                        onCreatePlan = { name, desc ->
+                            viewModel.createPlan(name, desc)
+                        },
+                        onSetActivePlan = { planId ->
+                            viewModel.setActivePlan(planId)
+                        },
+                        onDeletePlan = { plan ->
+                            viewModel.deletePlan(plan)
+                        },
+                        onCreateCustomExercise = { ex ->
+                            viewModel.createCustomExercise(ex)
                         }
                     )
                 }
@@ -288,8 +340,9 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                     ExerciseListScreen(
                         exercises = allExercises,
                         onExerciseClick = { exId ->
+                            previousDetailRoute = "exercises"
                             viewModel.selectExercise(exId)
-                            currentScreen = Screen.ExerciseDetail(exId)
+                            currentScreenRoute = "detail_$exId"
                         }
                     )
                 }
@@ -325,7 +378,7 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                         },
                         onAddMeasurement = { m -> viewModel.addBodyMeasurement(m) },
                         onDeleteMeasurement = { m -> viewModel.deleteBodyMeasurement(m) },
-                        onBack = { currentScreen = Screen.Home }
+                        onBack = { currentScreenRoute = "home" }
                     )
                 }
 
@@ -337,7 +390,7 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                         onSaveBackupPassword = { pass -> viewModel.setBackupPassword(pass) },
                         onExportBackup = { uri, password, callback -> viewModel.exportBackup(uri, password, callback) },
                         onRestoreBackup = { uri, password, callback -> viewModel.restoreBackup(uri, password, callback) },
-                        onBack = { currentScreen = Screen.Home }
+                        onBack = { currentScreenRoute = "home" }
                     )
                 }
 
@@ -371,21 +424,55 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                             },
                             onFinishWorkout = { notes ->
                                 viewModel.finishActiveWorkout(notes)
-                                currentScreen = Screen.Home
+                                currentScreenRoute = "home"
                             },
                             onDiscardWorkout = {
                                 viewModel.discardActiveWorkout()
-                                currentScreen = Screen.Home
+                                currentScreenRoute = "home"
                             },
                             onDismissTimer = { viewModel.dismissRestTimer() },
                             onStartTimer = { seconds -> viewModel.startRestTimer(seconds) },
                             onExerciseDetailsClick = { exId ->
+                                previousDetailRoute = "active_workout"
                                 viewModel.selectExercise(exId)
-                                currentScreen = Screen.ExerciseDetail(exId)
+                                currentScreenRoute = "detail_$exId"
+                            },
+                            onMinimize = {
+                                currentScreenRoute = "home"
+                            },
+                            onNavigateToExercises = {
+                                selectedTabRoute = "exercises"
+                                currentScreenRoute = "exercises"
+                            },
+                            onNavigateToHistory = {
+                                selectedTabRoute = "history"
+                                currentScreenRoute = "history"
+                            },
+                            onNavigateToMeasurements = {
+                                currentScreenRoute = "measurements"
                             }
                         )
                     } else {
-                        currentScreen = Screen.Home
+                        // While the workout session is being created in database, show loading state rather than bouncing to Home
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                CircularProgressIndicator(color = AthleticOrange)
+                                Text(
+                                    text = "Przygotowywanie sesji treningowej...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.White
+                                )
+                                TextButton(onClick = { currentScreenRoute = "home" }) {
+                                    Text("Wróć do pulpitu", color = Color(0xFF94A3B8))
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -417,15 +504,11 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                                 viewModel.deleteMedia(media)
                             },
                             onBack = {
-                                if (activeSession != null && selectedTab != Screen.Exercises && selectedTab != Screen.Home) {
-                                    currentScreen = Screen.ActiveWorkout
-                                } else {
-                                    currentScreen = selectedTab
-                                }
+                                currentScreenRoute = previousDetailRoute
                             }
                         )
                     } else {
-                        currentScreen = selectedTab
+                        currentScreenRoute = previousDetailRoute
                     }
                 }
             }
@@ -436,6 +519,6 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
 data class NavigationItem(
     val label: String,
     val icon: ImageVector,
-    val screen: Screen,
+    val route: String,
     val testTag: String
 )

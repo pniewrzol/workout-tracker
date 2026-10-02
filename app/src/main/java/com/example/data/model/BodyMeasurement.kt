@@ -17,5 +17,8 @@ data class BodyMeasurement(
     val thighsCm: Float? = null,
     val calvesCm: Float? = null,
     val shouldersCm: Float? = null,
-    val notes: String = ""
+    val notes: String = "",
+    val frontPhotoUri: String? = null,
+    val backPhotoUri: String? = null,
+    val sidePhotoUri: String? = null
 )

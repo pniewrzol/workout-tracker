@@ -61,8 +61,25 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.example.data.model.BodyMeasurement
+import com.example.data.model.WorkoutPlan
+import com.example.ui.components.WorkoutPlanManagerDialog
+import com.example.ui.components.WorkoutReportDialog
 
 @Composable
 fun HomeScreen(
@@ -70,6 +87,9 @@ fun HomeScreen(
     completedSessions: List<WorkoutSession>,
     allExercises: List<Exercise>,
     allCompletedSets: List<WorkoutSetLog>,
+    allPlans: List<WorkoutPlan> = emptyList(),
+    activePlan: WorkoutPlan? = null,
+    allMeasurements: List<BodyMeasurement> = emptyList(),
     onStartWorkout: (workoutName: String, exercises: List<Exercise>) -> Unit,
     onResumeWorkout: () -> Unit,
     onNavigateToExercises: () -> Unit,
@@ -79,8 +99,14 @@ fun HomeScreen(
     onNavigateToMeasurements: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onExerciseClick: (Long) -> Unit,
+    onCreatePlan: (String, String) -> Unit = { _, _ -> },
+    onSetActivePlan: (Long) -> Unit = {},
+    onDeletePlan: (WorkoutPlan) -> Unit = {},
+    onCreateCustomExercise: (Exercise) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var showReportDialog by remember { mutableStateOf(false) }
+    var showPlanManagerDialog by remember { mutableStateOf(false) }
     val mainSessionIds = remember(completedSessions) {
         completedSessions.filter { it.isMainWorkout }.map { it.id }.toSet()
     }
@@ -318,6 +344,28 @@ fun HomeScreen(
                         modifier = Modifier.weight(1f)
                     )
                 }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    QuickNavCard(
+                        title = "Generuj Raport",
+                        subtitle = "Okres, kg, serie, foto",
+                        icon = Icons.Default.Assessment,
+                        accentColor = Color(0xFFA855F7),
+                        onClick = { showReportDialog = true },
+                        modifier = Modifier.weight(1f)
+                    )
+                    QuickNavCard(
+                        title = "Plany Treningowe",
+                        subtitle = activePlan?.name ?: "Zarządzaj planami",
+                        icon = Icons.Default.Folder,
+                        accentColor = AthleticOrange,
+                        onClick = { showPlanManagerDialog = true },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         }
 
@@ -328,69 +376,47 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Twój Plan Treningowy",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "Wybierz i zacznij",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Column {
+                    Text(
+                        text = "Twój Plan Treningowy",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Aktywny: ${activePlan?.name ?: "Plan Główny (A/B/C)"}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AthleticOrange,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.clickable { showPlanManagerDialog = true }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(imageVector = Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Zmień plan",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
             }
         }
 
-        // Workout Plan Cards: Trening A, Trening B, Trening C, Rozgrzewka & Mobilizacja
-        item {
-            WorkoutPlanCard(
-                title = "Trening A",
-                subtitle = "Powerband Chin-ups, Dips, Wykroki, OHP, Ramiona, Brzuch, Plank boczny (czas)",
-                exerciseCount = 8,
-                setsTotal = 30,
-                estimatedMin = "65 min",
-                badgeColor = AthleticOrange,
-                onStart = {
-                    val exercises = allExercises.filter { it.section == "Trening A" }
-                    onStartWorkout("Trening A", exercises)
-                }
-            )
-        }
-
-        item {
-            WorkoutPlanCard(
-                title = "Trening B",
-                subtitle = "Semi Sumo Martwy Ciąg, Skos Hammer, Wiosło, Bok barku, Ramiona, Brzuch, Schody (czas)",
-                exerciseCount = 9,
-                setsTotal = 31,
-                estimatedMin = "75 min",
-                badgeColor = ElectricCyan,
-                onStart = {
-                    val exercises = allExercises.filter { it.section == "Trening B" }
-                    onStartWorkout("Trening B", exercises)
-                }
-            )
-        }
-
-        item {
-            WorkoutPlanCard(
-                title = "Trening C",
-                subtitle = "Spacer farmera (dystans), Pallof Press, Wyciskanie hantli, Chin-up hold (czas), Tył barku, Piłka, Kółko",
-                exerciseCount = 9,
-                setsTotal = 33,
-                estimatedMin = "70 min",
-                badgeColor = GoldPr,
-                onStart = {
-                    val exercises = allExercises.filter { it.section == "Trening C" }
-                    onStartWorkout("Trening C", exercises)
-                }
-            )
-        }
-
+        // 1. Rozgrzewka i Mobilizacja PONAD Treningami A-C!
         item {
             WorkoutPlanCard(
                 title = "Rozgrzewka i Mobilizacja",
-                subtitle = "Row erg, Air bike + 10 ćwiczeń mobilizacyjnych i aktywacji (bez przerwy)",
+                subtitle = "Row erg, Air bike + 10 ćwiczeń mobilizacyjnych i aktywacji stawowej (zalecana przed każdym treningiem)",
                 exerciseCount = 12,
                 setsTotal = 12,
                 estimatedMin = "15 min",
@@ -400,6 +426,115 @@ fun HomeScreen(
                     onStartWorkout("Rozgrzewka & Mobilizacja", exercises)
                 }
             )
+        }
+
+        // 2. Workouts based on the active plan
+        val currentPlanId = activePlan?.id ?: 1L
+        if (currentPlanId == 1L) {
+            // Default 3-day FBW Plan (A, B, C)
+            item {
+                WorkoutPlanCard(
+                    title = "Trening A",
+                    subtitle = "Powerband Chin-ups, Dips, Wykroki, OHP, Ramiona, Brzuch, Plank boczny (czas)",
+                    exerciseCount = 8,
+                    setsTotal = 30,
+                    estimatedMin = "65 min",
+                    badgeColor = AthleticOrange,
+                    onStart = {
+                        val exercises = allExercises.filter { it.section == "Trening A" }
+                        onStartWorkout("Trening A", exercises)
+                    }
+                )
+            }
+
+            item {
+                WorkoutPlanCard(
+                    title = "Trening B",
+                    subtitle = "Semi Sumo Martwy Ciąg, Skos Hammer, Wiosło, Bok barku, Ramiona, Brzuch, Schody (czas)",
+                    exerciseCount = 9,
+                    setsTotal = 31,
+                    estimatedMin = "75 min",
+                    badgeColor = ElectricCyan,
+                    onStart = {
+                        val exercises = allExercises.filter { it.section == "Trening B" }
+                        onStartWorkout("Trening B", exercises)
+                    }
+                )
+            }
+
+            item {
+                WorkoutPlanCard(
+                    title = "Trening C",
+                    subtitle = "Spacer farmera (dystans), Pallof Press, Wyciskanie hantli, Chin-up hold (czas), Tył barku, Piłka, Kółko",
+                    exerciseCount = 9,
+                    setsTotal = 33,
+                    estimatedMin = "70 min",
+                    badgeColor = GoldPr,
+                    onStart = {
+                        val exercises = allExercises.filter { it.section == "Trening C" }
+                        onStartWorkout("Trening C", exercises)
+                    }
+                )
+            }
+        } else {
+            // Custom Plan Workouts
+            val customPlanExercises = allExercises.filter { it.planId == currentPlanId }
+            val customWorkouts = customPlanExercises.map { it.section }.distinct().filter { it != "Rozgrzewka" && it != "Mobilizacja" }
+
+            if (customWorkouts.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Brak treningów w tym planie",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Kliknij poniżej, aby dodać swój pierwszy trening lub ćwiczenia",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = { showPlanManagerDialog = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = AthleticOrange),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.Add, contentDescription = null)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Dodaj trening do planu")
+                            }
+                        }
+                    }
+                }
+            } else {
+                items(customWorkouts) { workoutName ->
+                    val workoutExs = customPlanExercises.filter { it.section == workoutName }
+                    val totalSets = workoutExs.sumOf { it.targetSets }
+                    WorkoutPlanCard(
+                        title = workoutName,
+                        subtitle = if (workoutExs.isNotEmpty()) workoutExs.joinToString(", ") { it.name } else "Brak ćwiczeń",
+                        exerciseCount = workoutExs.size,
+                        setsTotal = totalSets,
+                        estimatedMin = "${workoutExs.size * 8} min",
+                        badgeColor = AthleticOrange,
+                        onStart = {
+                            onStartWorkout(workoutName, workoutExs)
+                        }
+                    )
+                }
+            }
         }
 
         // Recent Workouts summary
@@ -481,6 +616,37 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    if (showReportDialog) {
+        WorkoutReportDialog(
+            sessions = completedSessions,
+            allSets = allCompletedSets,
+            allExercises = allExercises,
+            allMeasurements = allMeasurements,
+            onDismiss = { showReportDialog = false }
+        )
+    }
+
+    if (showPlanManagerDialog) {
+        WorkoutPlanManagerDialog(
+            plans = allPlans,
+            activePlan = activePlan,
+            allExercises = allExercises,
+            onSelectActivePlan = { planId ->
+                onSetActivePlan(planId)
+            },
+            onCreatePlan = { name, desc ->
+                onCreatePlan(name, desc)
+            },
+            onDeletePlan = { plan ->
+                onDeletePlan(plan)
+            },
+            onCreateExercise = { ex ->
+                onCreateCustomExercise(ex)
+            },
+            onDismiss = { showPlanManagerDialog = false }
+        )
     }
 }
 

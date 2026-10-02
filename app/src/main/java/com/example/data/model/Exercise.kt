@@ -30,7 +30,8 @@ data class Exercise(
     val cues: String,
     val instructions: String,
     val isCustom: Boolean = false,
-    val measurementType: String = "WEIGHT_AND_REPS" // "WEIGHT_AND_REPS", "BODYWEIGHT_REPS", "TIME", "DISTANCE"
+    val measurementType: String = "WEIGHT_AND_REPS", // "WEIGHT_AND_REPS", "BODYWEIGHT_REPS", "TIME", "DISTANCE"
+    val planId: Long = 1L
 ) {
     fun isDistanceBased(): Boolean {
         if (measurementType == "DISTANCE") return true
