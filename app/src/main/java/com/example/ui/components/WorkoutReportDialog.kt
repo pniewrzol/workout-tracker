@@ -27,10 +27,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ShowChart
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.Button
@@ -83,6 +85,7 @@ data class GeneratedReportData(
     val periodLabel: String,
     val dateRangeStr: String,
     val completedWorkoutsCount: Int,
+    val warmupSessionsCount: Int = 0,
     val totalTrainingMinutes: Long,
     val totalTonnageKg: Long,
     val totalSetsCount: Int,
@@ -105,7 +108,8 @@ data class WorkoutSessionReportItem(
     val name: String,
     val durationMin: Long,
     val setsCount: Int,
-    val tonnageKg: Long
+    val tonnageKg: Long,
+    val isMainWorkout: Boolean = true
 )
 
 data class TopExerciseReportItem(
@@ -153,6 +157,9 @@ fun buildReportData(
         exerciseStatsMap.getOrPut(set.exerciseId) { mutableListOf() }.add(set)
     }
 
+    val mainSessions = validSessions.filter { it.isMainWorkout }
+    val warmupSessions = validSessions.filter { !it.isMainWorkout }
+
     // Sessions breakdown
     val sessionItems = validSessions.map { session ->
         val sSets = validSets.filter { it.sessionId == session.id }
@@ -164,7 +171,8 @@ fun buildReportData(
             name = session.workoutName,
             durationMin = durationMin,
             setsCount = sSets.size,
-            tonnageKg = sTonnage
+            tonnageKg = sTonnage,
+            isMainWorkout = session.isMainWorkout
         )
     }
 
@@ -213,7 +221,8 @@ fun buildReportData(
     return GeneratedReportData(
         periodLabel = period.label,
         dateRangeStr = dateRangeStr,
-        completedWorkoutsCount = validSessions.size,
+        completedWorkoutsCount = mainSessions.size,
+        warmupSessionsCount = warmupSessions.size,
         totalTrainingMinutes = totalTrainingMinutes,
         totalTonnageKg = totalTonnageKg,
         totalSetsCount = validSets.size,
@@ -238,6 +247,9 @@ fun formatReportToText(report: GeneratedReportData): String {
     sb.appendLine("════════════════════════════════════")
     sb.appendLine("🏋️ PODSUMOWANIE AKTYWNOŚCI:")
     sb.appendLine("• Liczba ukończonych treningów: ${report.completedWorkoutsCount}")
+    if (report.warmupSessionsCount > 0) {
+        sb.appendLine("• Sesje rozgrzewki / mobility: ${report.warmupSessionsCount} (nie wliczane do głównych treningów)")
+    }
     val hours = report.totalTrainingMinutes / 60
     val mins = report.totalTrainingMinutes % 60
     sb.appendLine("• Czas spędzony na sali: ${hours}h ${mins}min")
@@ -308,8 +320,46 @@ fun WorkoutReportDialog(
     val context = LocalContext.current
     var selectedPeriod by remember { mutableStateOf(ReportPeriod.DAYS_30) }
 
+    val cutoffTime = remember(selectedPeriod) {
+        if (selectedPeriod.days >= 3000) 0L else System.currentTimeMillis() - (selectedPeriod.days.toLong() * 24 * 60 * 60 * 1000L)
+    }
+
     val reportData = remember(selectedPeriod, sessions, allSets, allExercises, allMeasurements) {
         buildReportData(selectedPeriod, sessions, allSets, allExercises, allMeasurements)
+    }
+
+    val periodSessions = remember(sessions, cutoffTime) {
+        sessions.filter { it.isCompleted && it.startTime >= cutoffTime }.sortedByDescending { it.startTime }
+    }
+    val periodSessionIds = remember(periodSessions) {
+        periodSessions.map { it.id }.toSet()
+    }
+    val periodSets = remember(allSets, periodSessionIds) {
+        allSets.filter { it.isCompleted && it.sessionId in periodSessionIds }
+    }
+    val periodMeasurements = remember(allMeasurements, cutoffTime) {
+        allMeasurements.filter { it.timestamp >= cutoffTime }.sortedByDescending { it.timestamp }
+    }
+
+    // Muscle activities
+    val muscleActivities = remember(allExercises, periodSets) {
+        calculateMuscleActivities(allExercises, periodSets, 3650).values.filter { it.setsCount > 0 }.sortedByDescending { it.setsCount }
+    }
+
+    // Best sets map (exercise id -> best set)
+    val bestSetsList = remember(periodSets, allExercises) {
+        val exMap = allExercises.associateBy { it.id }
+        val map = mutableMapOf<Long, WorkoutSetLog>()
+        for (set in periodSets) {
+            val cur = map[set.exerciseId]
+            if (cur == null || (set.weightKg * set.reps > cur.weightKg * cur.reps) || (set.weightKg * set.reps == cur.weightKg * cur.reps && set.weightKg > cur.weightKg)) {
+                map[set.exerciseId] = set
+            }
+        }
+        map.mapNotNull { (exId, set) ->
+            val ex = exMap[exId] ?: return@mapNotNull null
+            Triple(ex, set, (set.weightKg * (1f + set.reps / 30f))) // Estimated 1RM
+        }.sortedByDescending { it.second.weightKg }
     }
 
     Dialog(
@@ -494,6 +544,107 @@ fun WorkoutReportDialog(
                         }
                     }
 
+                    // Zaangażowane grupy mięśniowe
+                    if (muscleActivities.isNotEmpty()) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Text(
+                                        text = "Zaangażowane grupy mięśniowe",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = ElectricCyan
+                                    )
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    muscleActivities.forEach { act ->
+                                        val color = when (act.level) {
+                                            4 -> AthleticOrange
+                                            3 -> GoldPr
+                                            2 -> ElectricCyan
+                                            else -> Color(0xFF38BDF8)
+                                        }
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 4.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                                Box(modifier = Modifier.size(8.dp).background(color, CircleShape))
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(act.muscle.displayName, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                            }
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text("${act.setsCount} serii", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = color)
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text("(${act.totalTonnage.toLong()} kg)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Najlepsze serie (PR) w okresie
+                    if (bestSetsList.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "Najlepsze serie (PR) w okresie (${bestSetsList.size})",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        items(bestSetsList.take(8)) { (ex, set, est1rm) ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(ex.name, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text(
+                                            text = "Szacowane 1RM: ${String.format(Locale.US, "%.1f", est1rm)} kg",
+                                            fontSize = 11.sp,
+                                            color = GoldPr
+                                        )
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = GoldPr.copy(alpha = 0.15f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(imageVector = Icons.Default.Star, contentDescription = null, tint = GoldPr, modifier = Modifier.size(14.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = if (set.weightKg > 0) "${set.weightKg} kg × ${set.reps}" else "${set.reps} powt.",
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = GoldPr,
+                                                fontSize = 12.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // Top exercises in this period
                     if (reportData.topExercisesList.isNotEmpty()) {
                         item {
@@ -542,11 +693,63 @@ fun WorkoutReportDialog(
                         }
                     }
 
+                    // Wszystkie pomiary z okresu
+                    if (periodMeasurements.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "Wszystkie pomiary z okresu (${periodMeasurements.size})",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        items(periodMeasurements) { m ->
+                            val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = dateFormat.format(Date(m.timestamp)),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = ElectricCyan
+                                        )
+                                        Text(
+                                            text = "${m.weightKg ?: "-"} kg",
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 14.sp,
+                                            color = Color.White
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        m.bodyFatPercentage?.let { Text("BF: $it%", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                        m.waistCm?.let { Text("Pas: ${it}cm", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                        m.chestCm?.let { Text("Klatka: ${it}cm", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                        m.bicepsCm?.let { Text("Biceps: ${it}cm", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                                    }
+                                    if (m.notes.isNotBlank()) {
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(m.notes, fontSize = 11.sp, color = Color(0xFF94A3B8), maxLines = 2)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // Completed Workouts List
                     if (reportData.sessionsList.isNotEmpty()) {
                         item {
                             Text(
-                                text = "Wykonane sesje (${reportData.sessionsList.size})",
+                                text = "Wykonane sesje (Główne: ${reportData.completedWorkoutsCount}${if (reportData.warmupSessionsCount > 0) ", Rozgrzewki: ${reportData.warmupSessionsCount}" else ""})",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
@@ -565,8 +768,25 @@ fun WorkoutReportDialog(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Column {
-                                        Text(text = sessionItem.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(text = sessionItem.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                            if (!sessionItem.isMainWorkout) {
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Surface(
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    color = SuccessGreen.copy(alpha = 0.2f)
+                                                ) {
+                                                    Text(
+                                                        text = "Rozgrzewka",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = SuccessGreen,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
                                         Text(
                                             text = "${sessionItem.dateStr} • ${sessionItem.durationMin} min",
                                             fontSize = 11.sp,
@@ -594,7 +814,57 @@ fun WorkoutReportDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Bottom Action Buttons: Copy to Clipboard & Share
+                // Primary Exports: HTML & Excel (CSV)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            HtmlReportExporter.generateAndShareHtmlReport(
+                                context = context,
+                                reportData = reportData,
+                                sessions = sessions,
+                                allSets = allSets,
+                                allExercises = allExercises,
+                                allMeasurements = allMeasurements,
+                                cutoffTime = cutoffTime
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = ElectricCyan),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Description, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.Black)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Raport HTML", color = Color.Black, fontWeight = FontWeight.Bold)
+                    }
+
+                    Button(
+                        onClick = {
+                            ExcelReportExporter.generateAndShareExcelReport(
+                                context = context,
+                                reportData = reportData,
+                                sessions = sessions,
+                                allSets = allSets,
+                                allExercises = allExercises,
+                                allMeasurements = allMeasurements,
+                                cutoffTime = cutoffTime
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Assessment, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.Black)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Raport Excel", color = Color.Black, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Secondary Action Buttons: Copy to Clipboard & Share Plain Text
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -610,9 +880,9 @@ fun WorkoutReportDialog(
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Kopiuj")
+                        Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Kopiuj tekst", fontSize = 12.sp)
                     }
 
                     Button(
@@ -629,9 +899,9 @@ fun WorkoutReportDialog(
                         colors = ButtonDefaults.buttonColors(containerColor = AthleticOrange),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Udostępnij", color = Color.White, fontWeight = FontWeight.Bold)
+                        Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Udostępnij", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
             }

@@ -1,6 +1,5 @@
 package com.example.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -24,9 +23,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessibilityNew
-import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -36,8 +35,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,12 +45,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
@@ -98,7 +93,7 @@ data class MuscleActivity(
 ) {
     val level: Int = when {
         setsCount >= 16 -> 4 // Bardzo wysoka
-        setsCount >= 10 -> 3 // Optymalna / wysoka
+        setsCount >= 10 -> 3 // Wysoka
         setsCount >= 5  -> 2 // Umiarkowana
         setsCount >= 1  -> 1 // Wstępna
         else -> 0 // Brak
@@ -133,37 +128,37 @@ fun calculateMuscleActivities(
 
         val hitMuscles = mutableSetOf<MuscleGroup>()
 
-        if (textToMatch.contains("klatka") || textToMatch.contains("piersiow") || textToMatch.contains("chest") || textToMatch.contains("wyciskanie")) {
+        if (textToMatch.contains("klatka") || textToMatch.contains("piersiow") || textToMatch.contains("chest") || textToMatch.contains("wyciskanie") || textToMatch.contains("dips")) {
             hitMuscles.add(MuscleGroup.CHEST)
         }
         if (textToMatch.contains("bark") || textToMatch.contains("naramienn") || textToMatch.contains("żołnierskie") || textToMatch.contains("overhead") || textToMatch.contains("ohp")) {
             hitMuscles.add(MuscleGroup.SHOULDERS)
         }
-        if (textToMatch.contains("biceps") || textToMatch.contains("ramienn") || textToMatch.contains("uginanie ramion")) {
+        if (textToMatch.contains("biceps") || textToMatch.contains("ramienn") || textToMatch.contains("uginanie ramion") || textToMatch.contains("chin-up")) {
             hitMuscles.add(MuscleGroup.BICEPS)
         }
-        if (textToMatch.contains("triceps") || textToMatch.contains("francuskie") || textToMatch.contains("trójgłow") || textToMatch.contains("dips")) {
+        if (textToMatch.contains("triceps") || textToMatch.contains("francuskie") || textToMatch.contains("trójgłow") || textToMatch.contains("wyciskanie wąsko") || textToMatch.contains("dips")) {
             hitMuscles.add(MuscleGroup.TRICEPS)
         }
-        if (textToMatch.contains("brzuch") || textToMatch.contains("core") || textToMatch.contains("plank") || textToMatch.contains("skośne") || textToMatch.contains("pallof")) {
+        if (textToMatch.contains("brzuch") || textToMatch.contains("core") || textToMatch.contains("plank") || textToMatch.contains("skośne") || textToMatch.contains("pallof") || textToMatch.contains("kółko")) {
             hitMuscles.add(MuscleGroup.ABS)
         }
-        if (textToMatch.contains("plecy") || textToMatch.contains("najszersz") || textToMatch.contains("wiosłow") || textToMatch.contains("podciąganie") || textToMatch.contains("chin-up") || textToMatch.contains("czworoboczn")) {
+        if (textToMatch.contains("plecy") || textToMatch.contains("najszersz") || textToMatch.contains("wiosłow") || textToMatch.contains("podciąganie") || textToMatch.contains("drążk") || textToMatch.contains("chin-up") || textToMatch.contains("czworoboczn")) {
             hitMuscles.add(MuscleGroup.BACK)
         }
-        if (textToMatch.contains("czworo") || textToMatch.contains("przysiad") || textToMatch.contains("wykroki") || textToMatch.contains("quad")) {
+        if (textToMatch.contains("czworo") || textToMatch.contains("przysiad") || textToMatch.contains("wykroki") || textToMatch.contains("quad") || textToMatch.contains("schody") || textToMatch.contains("row erg") || textToMatch.contains("air bike")) {
             hitMuscles.add(MuscleGroup.QUADS)
         }
         if (textToMatch.contains("dwugłow") || textToMatch.contains("kulszow") || textToMatch.contains("martwy ciąg") || textToMatch.contains("rdl") || textToMatch.contains("hamstring")) {
             hitMuscles.add(MuscleGroup.HAMSTRINGS)
         }
-        if (textToMatch.contains("poślad") || textToMatch.contains("glute") || textToMatch.contains("hip thrust")) {
+        if (textToMatch.contains("poślad") || textToMatch.contains("glute") || textToMatch.contains("hip thrust") || textToMatch.contains("spacer farmera")) {
             hitMuscles.add(MuscleGroup.GLUTES)
         }
-        if (textToMatch.contains("łydk") || textToMatch.contains("brzuchat") || textToMatch.contains("wspięcia")) {
+        if (textToMatch.contains("łydk") || textToMatch.contains("brzuchat") || textToMatch.contains("wspięcia") || textToMatch.contains("schody")) {
             hitMuscles.add(MuscleGroup.CALVES)
         }
-        if (textToMatch.contains("przedramion") || textToMatch.contains("chwyt") || textToMatch.contains("farmer")) {
+        if (textToMatch.contains("przedramion") || textToMatch.contains("chwyt") || textToMatch.contains("farmer") || textToMatch.contains("hold")) {
             hitMuscles.add(MuscleGroup.FOREARMS)
         }
 
@@ -188,10 +183,10 @@ fun getMuscleColor(level: Int, isSelected: Boolean): Color {
     if (isSelected) return GoldPr
     return when (level) {
         4 -> AthleticOrange
-        3 -> Color(0xFFFF9E0B)
+        3 -> Color(0xFFFFB703)
         2 -> ElectricCyan
         1 -> Color(0xFF38BDF8)
-        else -> Color(0xFF1E293B)
+        else -> Color(0xFF283446)
     }
 }
 
@@ -203,10 +198,10 @@ fun MuscleMapView(
     latestMeasurement: BodyMeasurement? = null,
     initialSelectedMuscle: MuscleGroup? = null
 ) {
-    var displayTab by remember { mutableIntStateOf(0) } // 0: Model Wektorowy z Pomiarów (Beta), 1: Atlas Anatomiczny HD
     var selectedPeriod by remember { mutableStateOf(MusclePeriod.MONTH) }
     var selectedMuscle by remember { mutableStateOf<MuscleGroup?>(initialSelectedMuscle) }
-    var viewMode by remember { mutableIntStateOf(0) } // 0: Przód, 1: Tył, 2: Oba
+    // 0: Oba (Przód i Tył obok siebie - domyślny jak na wzorcu), 1: Przód, 2: Tył
+    var viewMode by remember { mutableIntStateOf(0) }
     var applyMeasurementScale by remember { mutableStateOf(latestMeasurement != null) }
 
     val activities = remember(exercises, completedSets, selectedPeriod) {
@@ -217,7 +212,7 @@ fun MuscleMapView(
         activities.values.sumOf { it.setsCount }
     }
 
-    // Dynamic silhouette scaling from real measurements (Beta)
+    // Dynamic silhouette scaling from real measurements
     val chestScale = remember(latestMeasurement, applyMeasurementScale) {
         if (!applyMeasurementScale || latestMeasurement?.chestCm == null) 1.0f
         else (latestMeasurement.chestCm / 105f).coerceIn(0.85f, 1.25f)
@@ -244,28 +239,6 @@ fun MuscleMapView(
     } else null
 
     Column(modifier = modifier.fillMaxWidth()) {
-        // Tab Row: Model Wektorowy vs Atlas Anatomiczny HD
-        TabRow(
-            selectedTabIndex = displayTab,
-            containerColor = Color(0xFF0D1424),
-            contentColor = ElectricCyan
-        ) {
-            Tab(
-                selected = displayTab == 0,
-                onClick = { displayTab = 0 },
-                text = { Text("Model Sylwetki (Pomiary)", fontSize = 13.sp, fontWeight = FontWeight.Bold) },
-                icon = { Icon(Icons.Default.AccessibilityNew, contentDescription = null, modifier = Modifier.size(18.dp)) }
-            )
-            Tab(
-                selected = displayTab == 1,
-                onClick = { displayTab = 1 },
-                text = { Text("Atlas Anatomiczny HD", fontSize = 13.sp, fontWeight = FontWeight.Bold) },
-                icon = { Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(18.dp)) }
-            )
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
         // Period Filter Chips
         Row(
             modifier = Modifier
@@ -289,170 +262,155 @@ fun MuscleMapView(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        if (displayTab == 0) {
-            // Interactive Muscular Silhouette Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0B111E)),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+        // Geometric Faceted Muscular Silhouette Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF0F1522)),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF233044)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Header & View Mode Switcher
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.AccessibilityNew,
-                                    contentDescription = null,
-                                    tint = ElectricCyan,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Sylwetka i Zaangażowanie",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                            }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.AccessibilityNew,
+                                contentDescription = null,
+                                tint = ElectricCyan,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "$totalActiveSets ukończonych serii w okresie",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFF94A3B8)
+                                text = "Model Sylwetki i Mięśni",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
                             )
                         }
-
-                        // View Mode Switcher: Przód / Tył / Oba
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFF1E293B)
-                        ) {
-                            Row(modifier = Modifier.padding(2.dp)) {
-                                listOf("Przód", "Tył", "Oba").forEachIndexed { index, label ->
-                                    val active = viewMode == index
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(if (active) MaterialTheme.colorScheme.primary else Color.Transparent)
-                                            .clickable { viewMode = index }
-                                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = label,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (active) Color.Black else Color.White
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                        Text(
+                            text = "$totalActiveSets ukończonych serii w okresie",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFF94A3B8)
+                        )
                     }
+                }
 
-                    // Measurement Proportions Toggle (Beta Feature)
-                    if (latestMeasurement != null) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = Color(0xFF162033),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.Straighten,
-                                        contentDescription = null,
-                                        tint = GoldPr,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Column {
-                                        Text(
-                                            text = "Odwzorowanie wymiarów (Beta)",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
-                                        )
-                                        if (vTaperRatio != null) {
-                                            Text(
-                                                text = "Wskaźnik V-Taper: ${String.format("%.2f", vTaperRatio)} (Klatka: ${latestMeasurement.chestCm}cm / Talia: ${latestMeasurement.waistCm}cm)",
-                                                fontSize = 10.sp,
-                                                color = GoldPr
-                                            )
-                                        }
-                                    }
-                                }
+                Spacer(modifier = Modifier.height(10.dp))
 
-                                Switch(
-                                    checked = applyMeasurementScale,
-                                    onCheckedChange = { applyMeasurementScale = it },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = GoldPr,
-                                        checkedTrackColor = GoldPr.copy(alpha = 0.4f)
-                                    ),
-                                    modifier = Modifier.size(36.dp, 20.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Muscular Anatomical Canvas
-                    Box(
+                // View Mode Switcher: Full width, 3 equal segments so text NEVER overflows or wraps on any phone!
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF1E293B),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(320.dp)
-                            .background(Color(0xFF070B14), RoundedCornerShape(16.dp))
-                            .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(16.dp)),
-                        contentAlignment = Alignment.Center
+                            .padding(3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
+                        val viewOptions = listOf("Oba widoki", "Przód", "Tył")
+                        viewOptions.forEachIndexed { index, label ->
+                            val active = viewMode == index
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(9.dp))
+                                    .background(if (active) AthleticOrange else Color.Transparent)
+                                    .clickable { viewMode = index }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (active) Color.White else Color(0xFFCBD5E1),
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Measurement proportions toggle bar
+                if (latestMeasurement != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF182333),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Straighten,
+                                    contentDescription = null,
+                                    tint = GoldPr,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Column {
+                                    Text(
+                                        text = "Skaluj proporcje wg Twoich pomiarów",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    if (vTaperRatio != null) {
+                                        Text(
+                                            text = "V-Taper: ${String.format("%.2f", vTaperRatio)} (Klatka: ${latestMeasurement.chestCm}cm / Talia: ${latestMeasurement.waistCm}cm)",
+                                            fontSize = 10.sp,
+                                            color = GoldPr
+                                        )
+                                    }
+                                }
+                            }
+
+                            Switch(
+                                checked = applyMeasurementScale,
+                                onCheckedChange = { applyMeasurementScale = it },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = GoldPr,
+                                    checkedTrackColor = GoldPr.copy(alpha = 0.4f)
+                                ),
+                                modifier = Modifier.size(36.dp, 20.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Faceted Muscular Canvas
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(390.dp)
+                        .background(Color(0xFF0C1019), RoundedCornerShape(16.dp))
+                        .border(1.dp, Color(0xFF1C273A), RoundedCornerShape(16.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
                         when (viewMode) {
                             0 -> {
-                                SculptedAnatomyCanvas(
-                                    isFront = true,
-                                    activities = activities,
-                                    selectedMuscle = selectedMuscle,
-                                    chestScale = chestScale,
-                                    waistScale = waistScale,
-                                    armScale = armScale,
-                                    legScale = legScale,
-                                    calfScale = calfScale,
-                                    onSelectMuscle = { selectedMuscle = if (selectedMuscle == it) null else it }
-                                )
-                            }
-                            1 -> {
-                                SculptedAnatomyCanvas(
-                                    isFront = false,
-                                    activities = activities,
-                                    selectedMuscle = selectedMuscle,
-                                    chestScale = chestScale,
-                                    waistScale = waistScale,
-                                    armScale = armScale,
-                                    legScale = legScale,
-                                    calfScale = calfScale,
-                                    onSelectMuscle = { selectedMuscle = if (selectedMuscle == it) null else it }
-                                )
-                            }
-                            else -> {
+                                // Side-by-Side: Front on Left, Rear on Right (exact match with user's reference image)
                                 Row(
                                     modifier = Modifier
                                         .fillMaxSize()
@@ -460,10 +418,27 @@ fun MuscleMapView(
                                     horizontalArrangement = Arrangement.SpaceEvenly,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("Przód", fontSize = 11.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.Bold)
-                                        Box(modifier = Modifier.weight(1f).aspectRatio(0.52f)) {
-                                            SculptedAnatomyCanvas(
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxSize(),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = Color(0xFF1E293B),
+                                            modifier = Modifier.padding(bottom = 4.dp)
+                                        ) {
+                                            Text(
+                                                "PRZÓD",
+                                                fontSize = 11.sp,
+                                                color = Color(0xFF94A3B8),
+                                                fontWeight = FontWeight.ExtraBold,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                                            FacetedMuscleCanvas(
                                                 isFront = true,
                                                 activities = activities,
                                                 selectedMuscle = selectedMuscle,
@@ -476,16 +451,35 @@ fun MuscleMapView(
                                             )
                                         }
                                     }
+
                                     Box(
                                         modifier = Modifier
                                             .width(1.dp)
-                                            .height(240.dp)
-                                            .background(Color(0xFF1E293B))
+                                            .height(280.dp)
+                                            .background(Color(0xFF1F2B3E))
                                     )
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("Tył", fontSize = 11.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.Bold)
-                                        Box(modifier = Modifier.weight(1f).aspectRatio(0.52f)) {
-                                            SculptedAnatomyCanvas(
+
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxSize(),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = Color(0xFF1E293B),
+                                            modifier = Modifier.padding(bottom = 4.dp)
+                                        ) {
+                                            Text(
+                                                "TYŁ",
+                                                fontSize = 11.sp,
+                                                color = Color(0xFF94A3B8),
+                                                fontWeight = FontWeight.ExtraBold,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                                            FacetedMuscleCanvas(
                                                 isFront = false,
                                                 activities = activities,
                                                 selectedMuscle = selectedMuscle,
@@ -500,73 +494,61 @@ fun MuscleMapView(
                                     }
                                 }
                             }
+                            1 -> {
+                                // Front View Only (Enlarged)
+                                FacetedMuscleCanvas(
+                                    isFront = true,
+                                    activities = activities,
+                                    selectedMuscle = selectedMuscle,
+                                    chestScale = chestScale,
+                                    waistScale = waistScale,
+                                    armScale = armScale,
+                                    legScale = legScale,
+                                    calfScale = calfScale,
+                                    onSelectMuscle = { selectedMuscle = if (selectedMuscle == it) null else it }
+                                )
+                            }
+                            else -> {
+                                // Rear View Only (Enlarged)
+                                FacetedMuscleCanvas(
+                                    isFront = false,
+                                    activities = activities,
+                                    selectedMuscle = selectedMuscle,
+                                    chestScale = chestScale,
+                                    waistScale = waistScale,
+                                    armScale = armScale,
+                                    legScale = legScale,
+                                    calfScale = calfScale,
+                                    onSelectMuscle = { selectedMuscle = if (selectedMuscle == it) null else it }
+                                )
+                            }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                    // Heatmap Legend
+                // Heatmap Legend
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Intensywność stymulacji:",
+                        fontSize = 11.sp,
+                        color = Color(0xFF94A3B8),
+                        fontWeight = FontWeight.Medium
+                    )
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text(
-                            text = "Intensywność stymulacji:",
-                            fontSize = 11.sp,
-                            color = Color(0xFF94A3B8),
-                            fontWeight = FontWeight.Medium
-                        )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            LegendChip(Color(0xFF1E293B), "0")
-                            LegendChip(Color(0xFF38BDF8), "1-4")
-                            LegendChip(ElectricCyan, "5-9")
-                            LegendChip(Color(0xFFFF9E0B), "10-15")
-                            LegendChip(AthleticOrange, "16+")
-                        }
+                        LegendChip(Color(0xFF283446), "0")
+                        LegendChip(Color(0xFF38BDF8), "1-4")
+                        LegendChip(ElectricCyan, "5-9")
+                        LegendChip(Color(0xFFFFB703), "10-15")
+                        LegendChip(AthleticOrange, "16+")
                     }
-                }
-            }
-        } else {
-            // High-Definition Medical Fitness Anatomy Atlas
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0B111E)),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Text(
-                        text = "Atlas Anatomiczny HD",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(300.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Color.Black),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.muscle_anatomy_model),
-                            contentDescription = "Atlas Anatomiczny",
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Kompletny schemat zaangażowania włókien mięśniowych w treningu siłowym.",
-                        fontSize = 12.sp,
-                        color = Color(0xFF94A3B8)
-                    )
                 }
             }
         }
@@ -601,35 +583,38 @@ fun MuscleMapView(
                                 fontWeight = FontWeight.Bold
                             )
                         }
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Text(
+                                text = "${act?.setsCount ?: 0} serii",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val tonnage = act?.totalTonnage?.toLong() ?: 0L
+                    if (tonnage > 0) {
                         Text(
-                            text = "${act?.setsCount ?: 0} serii",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.primary
+                            text = "Tonaż łączny w okresie: ${tonnage}kg",
+                            fontSize = 12.sp,
+                            color = ElectricCyan,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = "Tonaż całkowity: ${((act?.totalTonnage ?: 0f) / 1000f).let { String.format("%.1f t", it) }}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    if (act != null && act.exerciseNames.isNotEmpty()) {
+                    if (!act?.exerciseNames.isNullOrEmpty()) {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Ćwiczenia: ${act.exerciseNames.joinToString(", ")}",
-                            style = MaterialTheme.typography.bodySmall,
+                            text = "Ćwiczenia: ${act.exerciseNames.distinct().joinToString(", ")}",
+                            fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Brak zarejestrowanych serii w tym okresie. Wykonaj ćwiczenia na tę partię!",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.outline
                         )
                     }
                 }
@@ -637,14 +622,7 @@ fun MuscleMapView(
             Spacer(modifier = Modifier.height(10.dp))
         }
 
-        // Horizontal breakdown cards for all muscles
-        Text(
-            text = "Objętość według partii",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(vertical = 4.dp)
-        )
-
+        // Quick Horizontal Muscle Selector Chips
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth()
@@ -656,7 +634,7 @@ fun MuscleMapView(
 
                 Card(
                     modifier = Modifier
-                        .width(140.dp)
+                        .width(135.dp)
                         .clickable { selectedMuscle = if (selectedMuscle == muscle) null else muscle },
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(
@@ -697,11 +675,11 @@ fun MuscleMapView(
 }
 
 /**
- * Beautifully sculpted athletic human body canvas.
- * Draws organic curves, distinct muscle contours, and dynamically scales proportions to body measurements!
+ * Geometric, faceted low-poly muscular athletic body canvas matching reference design.
+ * Sharp polygonal facet plates with dark gaps, dynamic scaling, and muscle heatmaps.
  */
 @Composable
-fun SculptedAnatomyCanvas(
+fun FacetedMuscleCanvas(
     isFront: Boolean,
     activities: Map<MuscleGroup, MuscleActivity>,
     selectedMuscle: MuscleGroup?,
@@ -715,268 +693,691 @@ fun SculptedAnatomyCanvas(
     Canvas(
         modifier = Modifier
             .fillMaxSize()
-            .padding(10.dp)
+            .padding(4.dp)
     ) {
         val w = size.width
         val h = size.height
         val cx = w / 2f
 
-        // Head (Sculpted oval)
-        drawOval(
-            color = Color(0xFF334155),
-            topLeft = Offset(cx - w * 0.055f, h * 0.035f),
-            size = Size(w * 0.11f, h * 0.082f)
-        )
-        // Neck & Traps Base
-        drawRoundRect(
-            color = Color(0xFF334155),
-            topLeft = Offset(cx - w * 0.045f, h * 0.11f),
-            size = Size(w * 0.09f, h * 0.045f),
-            cornerRadius = CornerRadius(6f, 6f)
-        )
-
-        val shoulderSpan = (w * 0.22f) * chestScale
+        val baseFacetColor = Color(0xFF283446)
+        val gapStrokeColor = Color(0xFF0C1019)
 
         if (isFront) {
-            // ================= FRONT ANATOMY =================
+            // ================= FRONT VIEW FACETS =================
 
-            // Shoulders (Deltoids - organic chiseled curves)
-            val shoulderColor = getMuscleColor(activities[MuscleGroup.SHOULDERS]?.level ?: 0, selectedMuscle == MuscleGroup.SHOULDERS)
-            val deltWidth = (w * 0.115f) * armScale
-            val deltHeight = h * 0.095f
-
-            // Left Deltoid
-            drawRoundRect(
-                color = shoulderColor,
-                topLeft = Offset(cx - shoulderSpan - deltWidth * 0.65f, h * 0.155f),
-                size = Size(deltWidth, deltHeight),
-                cornerRadius = CornerRadius(16f, 16f)
+            // 1. HEAD (Faceted skull, jaw, chin)
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx - w * 0.035f, h * 0.035f),
+                Offset(cx + w * 0.035f, h * 0.035f),
+                Offset(cx + w * 0.055f, h * 0.065f),
+                Offset(cx - w * 0.055f, h * 0.065f)
             )
-            // Right Deltoid
-            drawRoundRect(
-                color = shoulderColor,
-                topLeft = Offset(cx + shoulderSpan - deltWidth * 0.35f, h * 0.155f),
-                size = Size(deltWidth, deltHeight),
-                cornerRadius = CornerRadius(16f, 16f)
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx - w * 0.055f, h * 0.067f),
+                Offset(cx + w * 0.055f, h * 0.067f),
+                Offset(cx + w * 0.035f, h * 0.105f),
+                Offset(cx - w * 0.035f, h * 0.105f)
             )
-
-            // Pectorals (Chest Plates)
-            val chestColor = getMuscleColor(activities[MuscleGroup.CHEST]?.level ?: 0, selectedMuscle == MuscleGroup.CHEST)
-            val pecWidth = (w * 0.15f) * chestScale
-            val pecHeight = h * 0.096f
-
-            // Left Pec
-            drawRoundRect(
-                color = chestColor,
-                topLeft = Offset(cx - pecWidth - w * 0.008f, h * 0.165f),
-                size = Size(pecWidth, pecHeight),
-                cornerRadius = CornerRadius(14f, 14f)
-            )
-            // Right Pec
-            drawRoundRect(
-                color = chestColor,
-                topLeft = Offset(cx + w * 0.008f, h * 0.165f),
-                size = Size(pecWidth, pecHeight),
-                cornerRadius = CornerRadius(14f, 14f)
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx - w * 0.035f, h * 0.107f),
+                Offset(cx + w * 0.035f, h * 0.107f),
+                Offset(cx, h * 0.120f)
             )
 
-            // Biceps (Arm Curvature)
-            val bicepsColor = getMuscleColor(activities[MuscleGroup.BICEPS]?.level ?: 0, selectedMuscle == MuscleGroup.BICEPS)
-            val bicepWidth = (w * 0.09f) * armScale
-            val bicepHeight = h * 0.12f
-
-            drawRoundRect(
-                color = bicepsColor,
-                topLeft = Offset(cx - shoulderSpan - bicepWidth * 0.85f, h * 0.25f),
-                size = Size(bicepWidth, bicepHeight),
-                cornerRadius = CornerRadius(14f, 14f)
+            // 2. NECK (SCM Left & Right + Throat)
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx - w * 0.028f, h * 0.112f),
+                Offset(cx - w * 0.005f, h * 0.118f),
+                Offset(cx - w * 0.012f, h * 0.155f),
+                Offset(cx - w * 0.038f, h * 0.145f)
             )
-            drawRoundRect(
-                color = bicepsColor,
-                topLeft = Offset(cx + shoulderSpan - bicepWidth * 0.15f, h * 0.25f),
-                size = Size(bicepWidth, bicepHeight),
-                cornerRadius = CornerRadius(14f, 14f)
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx + w * 0.005f, h * 0.118f),
+                Offset(cx + w * 0.028f, h * 0.112f),
+                Offset(cx + w * 0.038f, h * 0.145f),
+                Offset(cx + w * 0.012f, h * 0.155f)
             )
-
-            // Forearms
-            val forearmColor = getMuscleColor(activities[MuscleGroup.FOREARMS]?.level ?: 0, selectedMuscle == MuscleGroup.FOREARMS)
-            val forearmWidth = (w * 0.078f) * armScale
-            drawRoundRect(
-                color = forearmColor,
-                topLeft = Offset(cx - shoulderSpan - forearmWidth * 1.05f, h * 0.375f),
-                size = Size(forearmWidth, h * 0.13f),
-                cornerRadius = CornerRadius(10f, 10f)
-            )
-            drawRoundRect(
-                color = forearmColor,
-                topLeft = Offset(cx + shoulderSpan + forearmWidth * 0.05f, h * 0.375f),
-                size = Size(forearmWidth, h * 0.13f),
-                cornerRadius = CornerRadius(10f, 10f)
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx - w * 0.005f, h * 0.118f),
+                Offset(cx + w * 0.005f, h * 0.118f),
+                Offset(cx + w * 0.012f, h * 0.155f),
+                Offset(cx - w * 0.012f, h * 0.155f)
             )
 
-            // Abs / Core (V-Taper Tapered Abdominal Grid)
-            val absColor = getMuscleColor(activities[MuscleGroup.ABS]?.level ?: 0, selectedMuscle == MuscleGroup.ABS)
-            val baseAbsWidth = (w * 0.18f) * waistScale
-
-            for (row in 0..2) {
-                val rowWidth = baseAbsWidth * (1.0f - row * 0.045f)
-                val rowLeft = cx - rowWidth / 2f
-                drawRoundRect(
-                    color = absColor,
-                    topLeft = Offset(rowLeft, h * (0.272f + row * 0.04f)),
-                    size = Size(rowWidth, h * 0.034f),
-                    cornerRadius = CornerRadius(8f, 8f)
-                )
-            }
-
-            // Pelvis / Hips
-            val hipWidth = (w * 0.26f) * waistScale
-            drawRoundRect(
-                color = Color(0xFF1E293B),
-                topLeft = Offset(cx - hipWidth / 2f, h * 0.405f),
-                size = Size(hipWidth, h * 0.065f),
-                cornerRadius = CornerRadius(12f, 12f)
+            // 3. TRAPS (Upper shoulder slopes)
+            val isBackSelected = selectedMuscle == MuscleGroup.BACK
+            val trapsColor = getMuscleColor(activities[MuscleGroup.BACK]?.level ?: 0, isBackSelected)
+            drawFacetPolygon(trapsColor, isBackSelected, gapStrokeColor,
+                Offset(cx - w * 0.038f, h * 0.142f),
+                Offset(cx - w * 0.012f, h * 0.155f),
+                Offset(cx - w * 0.065f, h * 0.165f),
+                Offset(cx - w * 0.095f, h * 0.155f)
+            )
+            drawFacetPolygon(trapsColor, isBackSelected, gapStrokeColor,
+                Offset(cx + w * 0.012f, h * 0.155f),
+                Offset(cx + w * 0.038f, h * 0.142f),
+                Offset(cx + w * 0.095f, h * 0.155f),
+                Offset(cx + w * 0.065f, h * 0.165f)
             )
 
-            // Quads (Czworogłowe ud)
-            val quadColor = getMuscleColor(activities[MuscleGroup.QUADS]?.level ?: 0, selectedMuscle == MuscleGroup.QUADS)
-            val quadWidth = (w * 0.16f) * legScale
-            val quadHeight = h * 0.245f
-
-            // Left Quad
-            drawRoundRect(
-                color = quadColor,
-                topLeft = Offset(cx - quadWidth - w * 0.012f, h * 0.478f),
-                size = Size(quadWidth, quadHeight),
-                cornerRadius = CornerRadius(18f, 18f)
+            // 4. SHOULDERS / DELTOIDS
+            val isShouldersSelected = selectedMuscle == MuscleGroup.SHOULDERS
+            val deltColor = getMuscleColor(activities[MuscleGroup.SHOULDERS]?.level ?: 0, isShouldersSelected)
+            // Left Deltoid Anterior
+            drawFacetPolygon(deltColor, isShouldersSelected, gapStrokeColor,
+                Offset(cx - w * 0.095f, h * 0.155f),
+                Offset(cx - w * 0.065f, h * 0.165f),
+                Offset(cx - w * 0.10f * chestScale, h * 0.210f),
+                Offset(cx - w * 0.145f * armScale, h * 0.190f)
             )
-            // Right Quad
-            drawRoundRect(
-                color = quadColor,
-                topLeft = Offset(cx + w * 0.012f, h * 0.478f),
-                size = Size(quadWidth, quadHeight),
-                cornerRadius = CornerRadius(18f, 18f)
+            // Left Deltoid Lateral
+            drawFacetPolygon(deltColor, isShouldersSelected, gapStrokeColor,
+                Offset(cx - w * 0.145f * armScale, h * 0.190f),
+                Offset(cx - w * 0.18f * armScale, h * 0.205f),
+                Offset(cx - w * 0.155f * armScale, h * 0.245f),
+                Offset(cx - w * 0.115f * armScale, h * 0.240f),
+                Offset(cx - w * 0.10f * chestScale, h * 0.210f)
+            )
+            // Right Deltoid Anterior
+            drawFacetPolygon(deltColor, isShouldersSelected, gapStrokeColor,
+                Offset(cx + w * 0.065f, h * 0.165f),
+                Offset(cx + w * 0.095f, h * 0.155f),
+                Offset(cx + w * 0.145f * armScale, h * 0.190f),
+                Offset(cx + w * 0.10f * chestScale, h * 0.210f)
+            )
+            // Right Deltoid Lateral
+            drawFacetPolygon(deltColor, isShouldersSelected, gapStrokeColor,
+                Offset(cx + w * 0.145f * armScale, h * 0.190f),
+                Offset(cx + w * 0.18f * armScale, h * 0.205f),
+                Offset(cx + w * 0.155f * armScale, h * 0.245f),
+                Offset(cx + w * 0.115f * armScale, h * 0.240f),
+                Offset(cx + w * 0.10f * chestScale, h * 0.210f)
             )
 
-            // Calves (Front Shin / Calves)
-            val calfColor = getMuscleColor(activities[MuscleGroup.CALVES]?.level ?: 0, selectedMuscle == MuscleGroup.CALVES)
-            val calfWidth = (w * 0.10f) * calfScale
-            val calfHeight = h * 0.20f
-
-            drawRoundRect(
-                color = calfColor,
-                topLeft = Offset(cx - calfWidth - w * 0.022f, h * 0.735f),
-                size = Size(calfWidth, calfHeight),
-                cornerRadius = CornerRadius(14f, 14f)
+            // 5. PECTORALS / CHEST
+            val isChestSelected = selectedMuscle == MuscleGroup.CHEST
+            val chestColor = getMuscleColor(activities[MuscleGroup.CHEST]?.level ?: 0, isChestSelected)
+            // Left Upper Pec
+            drawFacetPolygon(chestColor, isChestSelected, gapStrokeColor,
+                Offset(cx - w * 0.008f, h * 0.165f),
+                Offset(cx - w * 0.062f, h * 0.165f),
+                Offset(cx - w * 0.095f * chestScale, h * 0.208f),
+                Offset(cx - w * 0.008f, h * 0.208f)
             )
-            drawRoundRect(
-                color = calfColor,
-                topLeft = Offset(cx + w * 0.022f, h * 0.735f),
-                size = Size(calfWidth, calfHeight),
-                cornerRadius = CornerRadius(14f, 14f)
+            // Left Lower Pec
+            drawFacetPolygon(chestColor, isChestSelected, gapStrokeColor,
+                Offset(cx - w * 0.008f, h * 0.211f),
+                Offset(cx - w * 0.095f * chestScale, h * 0.211f),
+                Offset(cx - w * 0.075f * chestScale, h * 0.252f),
+                Offset(cx - w * 0.008f, h * 0.252f)
+            )
+            // Right Upper Pec
+            drawFacetPolygon(chestColor, isChestSelected, gapStrokeColor,
+                Offset(cx + w * 0.008f, h * 0.165f),
+                Offset(cx + w * 0.062f, h * 0.165f),
+                Offset(cx + w * 0.095f * chestScale, h * 0.208f),
+                Offset(cx + w * 0.008f, h * 0.208f)
+            )
+            // Right Lower Pec
+            drawFacetPolygon(chestColor, isChestSelected, gapStrokeColor,
+                Offset(cx + w * 0.008f, h * 0.211f),
+                Offset(cx + w * 0.095f * chestScale, h * 0.211f),
+                Offset(cx + w * 0.075f * chestScale, h * 0.252f),
+                Offset(cx + w * 0.008f, h * 0.252f)
+            )
+
+            // 6. BICEPS
+            val isBicepsSelected = selectedMuscle == MuscleGroup.BICEPS
+            val bicepColor = getMuscleColor(activities[MuscleGroup.BICEPS]?.level ?: 0, isBicepsSelected)
+            // Left Bicep
+            drawFacetPolygon(bicepColor, isBicepsSelected, gapStrokeColor,
+                Offset(cx - w * 0.155f * armScale, h * 0.248f),
+                Offset(cx - w * 0.115f * armScale, h * 0.245f),
+                Offset(cx - w * 0.125f * armScale, h * 0.340f),
+                Offset(cx - w * 0.175f * armScale, h * 0.330f)
+            )
+            // Right Bicep
+            drawFacetPolygon(bicepColor, isBicepsSelected, gapStrokeColor,
+                Offset(cx + w * 0.115f * armScale, h * 0.245f),
+                Offset(cx + w * 0.155f * armScale, h * 0.248f),
+                Offset(cx + w * 0.175f * armScale, h * 0.330f),
+                Offset(cx + w * 0.125f * armScale, h * 0.340f)
+            )
+
+            // 7. FOREARMS & HANDS
+            val isForearmsSelected = selectedMuscle == MuscleGroup.FOREARMS
+            val forearmColor = getMuscleColor(activities[MuscleGroup.FOREARMS]?.level ?: 0, isForearmsSelected)
+            // Left Forearm
+            drawFacetPolygon(forearmColor, isForearmsSelected, gapStrokeColor,
+                Offset(cx - w * 0.175f * armScale, h * 0.335f),
+                Offset(cx - w * 0.125f * armScale, h * 0.345f),
+                Offset(cx - w * 0.155f * armScale, h * 0.450f),
+                Offset(cx - w * 0.210f * armScale, h * 0.435f)
+            )
+            // Left Hand
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx - w * 0.210f * armScale, h * 0.440f),
+                Offset(cx - w * 0.155f * armScale, h * 0.455f),
+                Offset(cx - w * 0.180f * armScale, h * 0.510f),
+                Offset(cx - w * 0.235f * armScale, h * 0.490f)
+            )
+            // Right Forearm
+            drawFacetPolygon(forearmColor, isForearmsSelected, gapStrokeColor,
+                Offset(cx + w * 0.125f * armScale, h * 0.345f),
+                Offset(cx + w * 0.175f * armScale, h * 0.335f),
+                Offset(cx + w * 0.210f * armScale, h * 0.435f),
+                Offset(cx + w * 0.155f * armScale, h * 0.450f)
+            )
+            // Right Hand
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx + w * 0.155f * armScale, h * 0.455f),
+                Offset(cx + w * 0.210f * armScale, h * 0.440f),
+                Offset(cx + w * 0.235f * armScale, h * 0.490f),
+                Offset(cx + w * 0.180f * armScale, h * 0.510f)
+            )
+
+            // 8. ABDOMINALS & SERRATUS
+            val isAbsSelected = selectedMuscle == MuscleGroup.ABS
+            val absColor = getMuscleColor(activities[MuscleGroup.ABS]?.level ?: 0, isAbsSelected)
+            // 6-pack abs
+            // Upper
+            drawFacetPolygon(absColor, isAbsSelected, gapStrokeColor,
+                Offset(cx - w * 0.045f * waistScale, h * 0.256f),
+                Offset(cx - w * 0.005f, h * 0.256f),
+                Offset(cx - w * 0.005f, h * 0.292f),
+                Offset(cx - w * 0.042f * waistScale, h * 0.292f)
+            )
+            drawFacetPolygon(absColor, isAbsSelected, gapStrokeColor,
+                Offset(cx + w * 0.005f, h * 0.256f),
+                Offset(cx + w * 0.045f * waistScale, h * 0.256f),
+                Offset(cx + w * 0.042f * waistScale, h * 0.292f),
+                Offset(cx + w * 0.005f, h * 0.292f)
+            )
+            // Mid
+            drawFacetPolygon(absColor, isAbsSelected, gapStrokeColor,
+                Offset(cx - w * 0.042f * waistScale, h * 0.296f),
+                Offset(cx - w * 0.005f, h * 0.296f),
+                Offset(cx - w * 0.005f, h * 0.334f),
+                Offset(cx - w * 0.038f * waistScale, h * 0.334f)
+            )
+            drawFacetPolygon(absColor, isAbsSelected, gapStrokeColor,
+                Offset(cx + w * 0.005f, h * 0.296f),
+                Offset(cx + w * 0.042f * waistScale, h * 0.296f),
+                Offset(cx + w * 0.038f * waistScale, h * 0.334f),
+                Offset(cx + w * 0.005f, h * 0.334f)
+            )
+            // Lower
+            drawFacetPolygon(absColor, isAbsSelected, gapStrokeColor,
+                Offset(cx - w * 0.038f * waistScale, h * 0.338f),
+                Offset(cx - w * 0.005f, h * 0.338f),
+                Offset(cx - w * 0.005f, h * 0.378f),
+                Offset(cx - w * 0.032f * waistScale, h * 0.374f)
+            )
+            drawFacetPolygon(absColor, isAbsSelected, gapStrokeColor,
+                Offset(cx + w * 0.005f, h * 0.338f),
+                Offset(cx + w * 0.038f * waistScale, h * 0.338f),
+                Offset(cx + w * 0.032f * waistScale, h * 0.374f),
+                Offset(cx + w * 0.005f, h * 0.378f)
+            )
+            // Serratus / Obliques Ribs
+            drawFacetPolygon(absColor, isAbsSelected, gapStrokeColor,
+                Offset(cx - w * 0.075f * waistScale, h * 0.256f),
+                Offset(cx - w * 0.048f * waistScale, h * 0.256f),
+                Offset(cx - w * 0.045f * waistScale, h * 0.292f),
+                Offset(cx - w * 0.078f * waistScale, h * 0.295f)
+            )
+            drawFacetPolygon(absColor, isAbsSelected, gapStrokeColor,
+                Offset(cx - w * 0.078f * waistScale, h * 0.298f),
+                Offset(cx - w * 0.045f * waistScale, h * 0.296f),
+                Offset(cx - w * 0.042f * waistScale, h * 0.334f),
+                Offset(cx - w * 0.070f * waistScale, h * 0.338f)
+            )
+            drawFacetPolygon(absColor, isAbsSelected, gapStrokeColor,
+                Offset(cx - w * 0.070f * waistScale, h * 0.342f),
+                Offset(cx - w * 0.042f * waistScale, h * 0.338f),
+                Offset(cx - w * 0.036f * waistScale, h * 0.375f),
+                Offset(cx - w * 0.060f * waistScale, h * 0.380f)
+            )
+            // Right Ribs
+            drawFacetPolygon(absColor, isAbsSelected, gapStrokeColor,
+                Offset(cx + w * 0.048f * waistScale, h * 0.256f),
+                Offset(cx + w * 0.075f * waistScale, h * 0.256f),
+                Offset(cx + w * 0.078f * waistScale, h * 0.295f),
+                Offset(cx + w * 0.045f * waistScale, h * 0.292f)
+            )
+            drawFacetPolygon(absColor, isAbsSelected, gapStrokeColor,
+                Offset(cx + w * 0.045f * waistScale, h * 0.296f),
+                Offset(cx + w * 0.078f * waistScale, h * 0.298f),
+                Offset(cx + w * 0.070f * waistScale, h * 0.338f),
+                Offset(cx + w * 0.042f * waistScale, h * 0.334f)
+            )
+            drawFacetPolygon(absColor, isAbsSelected, gapStrokeColor,
+                Offset(cx + w * 0.042f * waistScale, h * 0.338f),
+                Offset(cx + w * 0.070f * waistScale, h * 0.342f),
+                Offset(cx + w * 0.060f * waistScale, h * 0.380f),
+                Offset(cx + w * 0.036f * waistScale, h * 0.375f)
+            )
+
+            // 9. PELVIS / INGUINAL
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx, h * 0.380f),
+                Offset(cx + w * 0.035f * waistScale, h * 0.380f),
+                Offset(cx + w * 0.015f, h * 0.435f),
+                Offset(cx - w * 0.015f, h * 0.435f),
+                Offset(cx - w * 0.035f * waistScale, h * 0.380f)
+            )
+
+            // 10. QUADRICEPS
+            val isQuadsSelected = selectedMuscle == MuscleGroup.QUADS
+            val quadColor = getMuscleColor(activities[MuscleGroup.QUADS]?.level ?: 0, isQuadsSelected)
+            // Left Rectus Femoris (central diamond)
+            drawFacetPolygon(quadColor, isQuadsSelected, gapStrokeColor,
+                Offset(cx - w * 0.055f, h * 0.438f),
+                Offset(cx - w * 0.028f, h * 0.530f),
+                Offset(cx - w * 0.052f, h * 0.640f),
+                Offset(cx - w * 0.082f * legScale, h * 0.530f)
+            )
+            // Left Vastus Lateralis (outer teardrop)
+            drawFacetPolygon(quadColor, isQuadsSelected, gapStrokeColor,
+                Offset(cx - w * 0.055f, h * 0.438f),
+                Offset(cx - w * 0.125f * legScale, h * 0.480f),
+                Offset(cx - w * 0.115f * legScale, h * 0.620f),
+                Offset(cx - w * 0.060f, h * 0.645f),
+                Offset(cx - w * 0.082f * legScale, h * 0.530f)
+            )
+            // Left Vastus Medialis (inner teardrop)
+            drawFacetPolygon(quadColor, isQuadsSelected, gapStrokeColor,
+                Offset(cx - w * 0.055f, h * 0.438f),
+                Offset(cx - w * 0.012f, h * 0.490f),
+                Offset(cx - w * 0.015f, h * 0.620f),
+                Offset(cx - w * 0.045f, h * 0.655f),
+                Offset(cx - w * 0.028f, h * 0.530f)
+            )
+            // Right Quads
+            drawFacetPolygon(quadColor, isQuadsSelected, gapStrokeColor,
+                Offset(cx + w * 0.055f, h * 0.438f),
+                Offset(cx + w * 0.082f * legScale, h * 0.530f),
+                Offset(cx + w * 0.052f, h * 0.640f),
+                Offset(cx + w * 0.028f, h * 0.530f)
+            )
+            drawFacetPolygon(quadColor, isQuadsSelected, gapStrokeColor,
+                Offset(cx + w * 0.055f, h * 0.438f),
+                Offset(cx + w * 0.082f * legScale, h * 0.530f),
+                Offset(cx + w * 0.060f, h * 0.645f),
+                Offset(cx + w * 0.115f * legScale, h * 0.620f),
+                Offset(cx + w * 0.125f * legScale, h * 0.480f)
+            )
+            drawFacetPolygon(quadColor, isQuadsSelected, gapStrokeColor,
+                Offset(cx + w * 0.055f, h * 0.438f),
+                Offset(cx + w * 0.028f, h * 0.530f),
+                Offset(cx + w * 0.045f, h * 0.655f),
+                Offset(cx + w * 0.015f, h * 0.620f),
+                Offset(cx + w * 0.012f, h * 0.490f)
+            )
+
+            // 11. KNEES (Patella diamonds)
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx - w * 0.055f, h * 0.655f),
+                Offset(cx - w * 0.038f, h * 0.672f),
+                Offset(cx - w * 0.055f, h * 0.688f),
+                Offset(cx - w * 0.072f, h * 0.672f)
+            )
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx + w * 0.055f, h * 0.655f),
+                Offset(cx + w * 0.072f, h * 0.672f),
+                Offset(cx + w * 0.055f, h * 0.688f),
+                Offset(cx + w * 0.038f, h * 0.672f)
+            )
+
+            // 12. CALVES & SHINS
+            val isCalvesSelected = selectedMuscle == MuscleGroup.CALVES
+            val calfColor = getMuscleColor(activities[MuscleGroup.CALVES]?.level ?: 0, isCalvesSelected)
+            // Left Tibialis & Gastrocnemius
+            drawFacetPolygon(calfColor, isCalvesSelected, gapStrokeColor,
+                Offset(cx - w * 0.055f, h * 0.695f),
+                Offset(cx - w * 0.040f, h * 0.770f),
+                Offset(cx - w * 0.045f, h * 0.880f),
+                Offset(cx - w * 0.065f, h * 0.770f)
+            )
+            drawFacetPolygon(calfColor, isCalvesSelected, gapStrokeColor,
+                Offset(cx - w * 0.060f, h * 0.695f),
+                Offset(cx - w * 0.100f * calfScale, h * 0.750f),
+                Offset(cx - w * 0.068f, h * 0.820f),
+                Offset(cx - w * 0.060f, h * 0.760f)
+            )
+            drawFacetPolygon(calfColor, isCalvesSelected, gapStrokeColor,
+                Offset(cx - w * 0.038f, h * 0.760f),
+                Offset(cx - w * 0.018f, h * 0.800f),
+                Offset(cx - w * 0.025f, h * 0.880f),
+                Offset(cx - w * 0.042f, h * 0.840f)
+            )
+            // Right Calves
+            drawFacetPolygon(calfColor, isCalvesSelected, gapStrokeColor,
+                Offset(cx + w * 0.055f, h * 0.695f),
+                Offset(cx + w * 0.065f, h * 0.770f),
+                Offset(cx + w * 0.045f, h * 0.880f),
+                Offset(cx + w * 0.040f, h * 0.770f)
+            )
+            drawFacetPolygon(calfColor, isCalvesSelected, gapStrokeColor,
+                Offset(cx + w * 0.060f, h * 0.695f),
+                Offset(cx + w * 0.060f, h * 0.760f),
+                Offset(cx + w * 0.068f, h * 0.820f),
+                Offset(cx + w * 0.100f * calfScale, h * 0.750f)
+            )
+            drawFacetPolygon(calfColor, isCalvesSelected, gapStrokeColor,
+                Offset(cx + w * 0.038f, h * 0.760f),
+                Offset(cx + w * 0.042f, h * 0.840f),
+                Offset(cx + w * 0.025f, h * 0.880f),
+                Offset(cx + w * 0.018f, h * 0.800f)
+            )
+
+            // 13. FEET
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx - w * 0.065f, h * 0.885f),
+                Offset(cx - w * 0.025f, h * 0.885f),
+                Offset(cx - w * 0.020f, h * 0.940f),
+                Offset(cx - w * 0.075f, h * 0.940f)
+            )
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx + w * 0.025f, h * 0.885f),
+                Offset(cx + w * 0.065f, h * 0.885f),
+                Offset(cx + w * 0.075f, h * 0.940f),
+                Offset(cx + w * 0.020f, h * 0.940f)
             )
 
         } else {
-            // ================= REAR ANATOMY =================
+            // ================= REAR VIEW FACETS =================
 
-            // Trapezius & Back (Najszerszy Grzbietu / Lats)
-            val backColor = getMuscleColor(activities[MuscleGroup.BACK]?.level ?: 0, selectedMuscle == MuscleGroup.BACK)
-            val latsWidth = (w * 0.28f) * chestScale
-            val latsHeight = h * 0.22f
-
-            drawRoundRect(
-                color = backColor,
-                topLeft = Offset(cx - latsWidth / 2f, h * 0.155f),
-                size = Size(latsWidth, latsHeight),
-                cornerRadius = CornerRadius(18f, 18f)
+            // 1. POSTERIOR HEAD & NECK
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx - w * 0.035f, h * 0.035f),
+                Offset(cx + w * 0.035f, h * 0.035f),
+                Offset(cx + w * 0.055f, h * 0.065f),
+                Offset(cx - w * 0.055f, h * 0.065f)
+            )
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx - w * 0.055f, h * 0.067f),
+                Offset(cx + w * 0.055f, h * 0.067f),
+                Offset(cx + w * 0.032f, h * 0.115f),
+                Offset(cx - w * 0.032f, h * 0.115f)
             )
 
-            // Rear Shoulders
-            val shoulderColor = getMuscleColor(activities[MuscleGroup.SHOULDERS]?.level ?: 0, selectedMuscle == MuscleGroup.SHOULDERS)
-            val deltWidth = (w * 0.115f) * armScale
-            drawRoundRect(
-                color = shoulderColor,
-                topLeft = Offset(cx - shoulderSpan - deltWidth * 0.65f, h * 0.155f),
-                size = Size(deltWidth, h * 0.095f),
-                cornerRadius = CornerRadius(16f, 16f)
+            // 2. TRAPEZIUS (Diamond along spine)
+            val isBackSelected = selectedMuscle == MuscleGroup.BACK
+            val backColor = getMuscleColor(activities[MuscleGroup.BACK]?.level ?: 0, isBackSelected)
+            // Upper Traps
+            drawFacetPolygon(backColor, isBackSelected, gapStrokeColor,
+                Offset(cx - w * 0.032f, h * 0.115f),
+                Offset(cx + w * 0.032f, h * 0.115f),
+                Offset(cx + w * 0.090f, h * 0.155f),
+                Offset(cx, h * 0.160f),
+                Offset(cx - w * 0.090f, h * 0.155f)
             )
-            drawRoundRect(
-                color = shoulderColor,
-                topLeft = Offset(cx + shoulderSpan - deltWidth * 0.35f, h * 0.155f),
-                size = Size(deltWidth, h * 0.095f),
-                cornerRadius = CornerRadius(16f, 16f)
-            )
-
-            // Triceps (Horseshoe)
-            val tricepsColor = getMuscleColor(activities[MuscleGroup.TRICEPS]?.level ?: 0, selectedMuscle == MuscleGroup.TRICEPS)
-            val tricepWidth = (w * 0.09f) * armScale
-            drawRoundRect(
-                color = tricepsColor,
-                topLeft = Offset(cx - shoulderSpan - tricepWidth * 0.85f, h * 0.25f),
-                size = Size(tricepWidth, h * 0.12f),
-                cornerRadius = CornerRadius(14f, 14f)
-            )
-            drawRoundRect(
-                color = tricepsColor,
-                topLeft = Offset(cx + shoulderSpan - tricepWidth * 0.15f, h * 0.25f),
-                size = Size(tricepWidth, h * 0.12f),
-                cornerRadius = CornerRadius(14f, 14f)
+            // Mid Traps (Diamond)
+            drawFacetPolygon(backColor, isBackSelected, gapStrokeColor,
+                Offset(cx, h * 0.162f),
+                Offset(cx + w * 0.050f, h * 0.220f),
+                Offset(cx, h * 0.280f),
+                Offset(cx - w * 0.050f, h * 0.220f)
             )
 
-            // Glutes (Pośladki)
-            val gluteColor = getMuscleColor(activities[MuscleGroup.GLUTES]?.level ?: 0, selectedMuscle == MuscleGroup.GLUTES)
-            val gluteWidth = (w * 0.145f) * waistScale
-            val gluteHeight = h * 0.11f
-
-            drawRoundRect(
-                color = gluteColor,
-                topLeft = Offset(cx - gluteWidth - w * 0.008f, h * 0.385f),
-                size = Size(gluteWidth, gluteHeight),
-                cornerRadius = CornerRadius(16f, 16f)
+            // 3. POSTERIOR DELTOIDS
+            val isShouldersSelected = selectedMuscle == MuscleGroup.SHOULDERS
+            val deltColor = getMuscleColor(activities[MuscleGroup.SHOULDERS]?.level ?: 0, isShouldersSelected)
+            drawFacetPolygon(deltColor, isShouldersSelected, gapStrokeColor,
+                Offset(cx - w * 0.090f, h * 0.155f),
+                Offset(cx - w * 0.145f * armScale, h * 0.175f),
+                Offset(cx - w * 0.175f * armScale, h * 0.215f),
+                Offset(cx - w * 0.115f * armScale, h * 0.235f),
+                Offset(cx - w * 0.085f, h * 0.205f)
             )
-            drawRoundRect(
-                color = gluteColor,
-                topLeft = Offset(cx + w * 0.008f, h * 0.385f),
-                size = Size(gluteWidth, gluteHeight),
-                cornerRadius = CornerRadius(16f, 16f)
-            )
-
-            // Hamstrings (Dwugłowe ud)
-            val hamColor = getMuscleColor(activities[MuscleGroup.HAMSTRINGS]?.level ?: 0, selectedMuscle == MuscleGroup.HAMSTRINGS)
-            val hamWidth = (w * 0.15f) * legScale
-            val hamHeight = h * 0.225f
-
-            drawRoundRect(
-                color = hamColor,
-                topLeft = Offset(cx - hamWidth - w * 0.012f, h * 0.505f),
-                size = Size(hamWidth, hamHeight),
-                cornerRadius = CornerRadius(16f, 16f)
-            )
-            drawRoundRect(
-                color = hamColor,
-                topLeft = Offset(cx + w * 0.012f, h * 0.505f),
-                size = Size(hamWidth, hamHeight),
-                cornerRadius = CornerRadius(16f, 16f)
+            drawFacetPolygon(deltColor, isShouldersSelected, gapStrokeColor,
+                Offset(cx + w * 0.090f, h * 0.155f),
+                Offset(cx + w * 0.085f, h * 0.205f),
+                Offset(cx + w * 0.115f * armScale, h * 0.235f),
+                Offset(cx + w * 0.175f * armScale, h * 0.215f),
+                Offset(cx + w * 0.145f * armScale, h * 0.175f)
             )
 
-            // Calves (Tył łydek - Diamond gastrocnemius heads)
-            val calfColor = getMuscleColor(activities[MuscleGroup.CALVES]?.level ?: 0, selectedMuscle == MuscleGroup.CALVES)
-            val calfWidth = (w * 0.11f) * calfScale
-            val calfHeight = h * 0.20f
-
-            drawRoundRect(
-                color = calfColor,
-                topLeft = Offset(cx - calfWidth - w * 0.02f, h * 0.74f),
-                size = Size(calfWidth, calfHeight),
-                cornerRadius = CornerRadius(16f, 16f)
+            // 4. LATISSIMUS DORSI & SCAPULA (Wide V-Taper Wings)
+            // Left Infraspinatus / Scapula
+            drawFacetPolygon(backColor, isBackSelected, gapStrokeColor,
+                Offset(cx - w * 0.085f, h * 0.205f),
+                Offset(cx - w * 0.050f, h * 0.220f),
+                Offset(cx - w * 0.045f, h * 0.275f),
+                Offset(cx - w * 0.100f * chestScale, h * 0.255f)
             )
-            drawRoundRect(
-                color = calfColor,
-                topLeft = Offset(cx + w * 0.02f, h * 0.74f),
-                size = Size(calfWidth, calfHeight),
-                cornerRadius = CornerRadius(16f, 16f)
+            // Right Infraspinatus / Scapula
+            drawFacetPolygon(backColor, isBackSelected, gapStrokeColor,
+                Offset(cx + w * 0.050f, h * 0.220f),
+                Offset(cx + w * 0.085f, h * 0.205f),
+                Offset(cx + w * 0.100f * chestScale, h * 0.255f),
+                Offset(cx + w * 0.045f, h * 0.275f)
+            )
+            // Left Lat Wing (V-Taper)
+            drawFacetPolygon(backColor, isBackSelected, gapStrokeColor,
+                Offset(cx - w * 0.100f * chestScale, h * 0.255f),
+                Offset(cx - w * 0.045f, h * 0.275f),
+                Offset(cx - w * 0.010f, h * 0.380f),
+                Offset(cx - w * 0.065f * waistScale, h * 0.370f)
+            )
+            // Right Lat Wing (V-Taper)
+            drawFacetPolygon(backColor, isBackSelected, gapStrokeColor,
+                Offset(cx + w * 0.045f, h * 0.275f),
+                Offset(cx + w * 0.100f * chestScale, h * 0.255f),
+                Offset(cx + w * 0.065f * waistScale, h * 0.370f),
+                Offset(cx + w * 0.010f, h * 0.380f)
+            )
+            // Lower Back (Erector Spinae)
+            drawFacetPolygon(backColor, isBackSelected, gapStrokeColor,
+                Offset(cx - w * 0.025f, h * 0.285f),
+                Offset(cx + w * 0.025f, h * 0.285f),
+                Offset(cx + w * 0.020f, h * 0.405f),
+                Offset(cx - w * 0.020f, h * 0.405f)
+            )
+
+            // 5. TRICEPS
+            val isTricepsSelected = selectedMuscle == MuscleGroup.TRICEPS
+            val tricepsColor = getMuscleColor(activities[MuscleGroup.TRICEPS]?.level ?: 0, isTricepsSelected)
+            // Left Triceps
+            drawFacetPolygon(tricepsColor, isTricepsSelected, gapStrokeColor,
+                Offset(cx - w * 0.175f * armScale, h * 0.220f),
+                Offset(cx - w * 0.115f * armScale, h * 0.238f),
+                Offset(cx - w * 0.125f * armScale, h * 0.340f),
+                Offset(cx - w * 0.180f * armScale, h * 0.325f)
+            )
+            // Right Triceps
+            drawFacetPolygon(tricepsColor, isTricepsSelected, gapStrokeColor,
+                Offset(cx + w * 0.115f * armScale, h * 0.238f),
+                Offset(cx + w * 0.175f * armScale, h * 0.220f),
+                Offset(cx + w * 0.180f * armScale, h * 0.325f),
+                Offset(cx + w * 0.125f * armScale, h * 0.340f)
+            )
+
+            // 6. POSTERIOR FOREARMS & HANDS
+            val isForearmsSelected = selectedMuscle == MuscleGroup.FOREARMS
+            val forearmColor = getMuscleColor(activities[MuscleGroup.FOREARMS]?.level ?: 0, isForearmsSelected)
+            drawFacetPolygon(forearmColor, isForearmsSelected, gapStrokeColor,
+                Offset(cx - w * 0.180f * armScale, h * 0.330f),
+                Offset(cx - w * 0.125f * armScale, h * 0.345f),
+                Offset(cx - w * 0.155f * armScale, h * 0.450f),
+                Offset(cx - w * 0.210f * armScale, h * 0.435f)
+            )
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx - w * 0.210f * armScale, h * 0.440f),
+                Offset(cx - w * 0.155f * armScale, h * 0.455f),
+                Offset(cx - w * 0.180f * armScale, h * 0.510f),
+                Offset(cx - w * 0.235f * armScale, h * 0.490f)
+            )
+            drawFacetPolygon(forearmColor, isForearmsSelected, gapStrokeColor,
+                Offset(cx + w * 0.125f * armScale, h * 0.345f),
+                Offset(cx + w * 0.180f * armScale, h * 0.330f),
+                Offset(cx + w * 0.210f * armScale, h * 0.435f),
+                Offset(cx + w * 0.155f * armScale, h * 0.450f)
+            )
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx + w * 0.155f * armScale, h * 0.455f),
+                Offset(cx + w * 0.210f * armScale, h * 0.440f),
+                Offset(cx + w * 0.235f * armScale, h * 0.490f),
+                Offset(cx + w * 0.180f * armScale, h * 0.510f)
+            )
+
+            // 7. GLUTES
+            val isGlutesSelected = selectedMuscle == MuscleGroup.GLUTES
+            val gluteColor = getMuscleColor(activities[MuscleGroup.GLUTES]?.level ?: 0, isGlutesSelected)
+            // Left Glute
+            drawFacetPolygon(gluteColor, isGlutesSelected, gapStrokeColor,
+                Offset(cx - w * 0.010f, h * 0.408f),
+                Offset(cx - w * 0.080f * waistScale, h * 0.405f),
+                Offset(cx - w * 0.095f * waistScale, h * 0.485f),
+                Offset(cx - w * 0.060f, h * 0.525f),
+                Offset(cx - w * 0.010f, h * 0.520f)
+            )
+            // Right Glute
+            drawFacetPolygon(gluteColor, isGlutesSelected, gapStrokeColor,
+                Offset(cx + w * 0.010f, h * 0.408f),
+                Offset(cx + w * 0.080f * waistScale, h * 0.405f),
+                Offset(cx + w * 0.095f * waistScale, h * 0.485f),
+                Offset(cx + w * 0.060f, h * 0.525f),
+                Offset(cx + w * 0.010f, h * 0.520f)
+            )
+
+            // 8. HAMSTRINGS
+            val isHamstringsSelected = selectedMuscle == MuscleGroup.HAMSTRINGS
+            val hamColor = getMuscleColor(activities[MuscleGroup.HAMSTRINGS]?.level ?: 0, isHamstringsSelected)
+            // Left Biceps Femoris (outer)
+            drawFacetPolygon(hamColor, isHamstringsSelected, gapStrokeColor,
+                Offset(cx - w * 0.060f, h * 0.528f),
+                Offset(cx - w * 0.105f * legScale, h * 0.535f),
+                Offset(cx - w * 0.095f * legScale, h * 0.655f),
+                Offset(cx - w * 0.060f, h * 0.655f)
+            )
+            // Left Semitendinosus (inner)
+            drawFacetPolygon(hamColor, isHamstringsSelected, gapStrokeColor,
+                Offset(cx - w * 0.010f, h * 0.525f),
+                Offset(cx - w * 0.055f, h * 0.528f),
+                Offset(cx - w * 0.055f, h * 0.655f),
+                Offset(cx - w * 0.012f, h * 0.650f)
+            )
+            // Right Hamstrings
+            drawFacetPolygon(hamColor, isHamstringsSelected, gapStrokeColor,
+                Offset(cx + w * 0.060f, h * 0.528f),
+                Offset(cx + w * 0.105f * legScale, h * 0.535f),
+                Offset(cx + w * 0.095f * legScale, h * 0.655f),
+                Offset(cx + w * 0.060f, h * 0.655f)
+            )
+            drawFacetPolygon(hamColor, isHamstringsSelected, gapStrokeColor,
+                Offset(cx + w * 0.010f, h * 0.525f),
+                Offset(cx + w * 0.055f, h * 0.528f),
+                Offset(cx + w * 0.055f, h * 0.655f),
+                Offset(cx + w * 0.012f, h * 0.650f)
+            )
+
+            // 9. POPLITEAL FOSSA / KNEE BACK
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx - w * 0.055f, h * 0.660f),
+                Offset(cx - w * 0.030f, h * 0.675f),
+                Offset(cx - w * 0.055f, h * 0.690f),
+                Offset(cx - w * 0.080f, h * 0.675f)
+            )
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx + w * 0.055f, h * 0.660f),
+                Offset(cx + w * 0.080f, h * 0.675f),
+                Offset(cx + w * 0.055f, h * 0.690f),
+                Offset(cx + w * 0.030f, h * 0.675f)
+            )
+
+            // 10. CALVES (Diamond gastrocnemius heads)
+            val isCalvesSelected = selectedMuscle == MuscleGroup.CALVES
+            val calfColor = getMuscleColor(activities[MuscleGroup.CALVES]?.level ?: 0, isCalvesSelected)
+            // Left Gastrocnemius Lateral Head
+            drawFacetPolygon(calfColor, isCalvesSelected, gapStrokeColor,
+                Offset(cx - w * 0.055f, h * 0.695f),
+                Offset(cx - w * 0.105f * calfScale, h * 0.745f),
+                Offset(cx - w * 0.065f, h * 0.815f),
+                Offset(cx - w * 0.055f, h * 0.760f)
+            )
+            // Left Gastrocnemius Medial Head
+            drawFacetPolygon(calfColor, isCalvesSelected, gapStrokeColor,
+                Offset(cx - w * 0.055f, h * 0.695f),
+                Offset(cx - w * 0.055f, h * 0.760f),
+                Offset(cx - w * 0.045f, h * 0.825f),
+                Offset(cx - w * 0.015f, h * 0.760f)
+            )
+            // Left Achilles Tendon
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx - w * 0.055f, h * 0.820f),
+                Offset(cx - w * 0.035f, h * 0.820f),
+                Offset(cx - w * 0.032f, h * 0.890f),
+                Offset(cx - w * 0.058f, h * 0.890f)
+            )
+
+            // Right Gastrocnemius Lateral Head
+            drawFacetPolygon(calfColor, isCalvesSelected, gapStrokeColor,
+                Offset(cx + w * 0.055f, h * 0.695f),
+                Offset(cx + w * 0.105f * calfScale, h * 0.745f),
+                Offset(cx + w * 0.065f, h * 0.815f),
+                Offset(cx + w * 0.055f, h * 0.760f)
+            )
+            // Right Gastrocnemius Medial Head
+            drawFacetPolygon(calfColor, isCalvesSelected, gapStrokeColor,
+                Offset(cx + w * 0.055f, h * 0.695f),
+                Offset(cx + w * 0.055f, h * 0.760f),
+                Offset(cx + w * 0.045f, h * 0.825f),
+                Offset(cx + w * 0.015f, h * 0.760f)
+            )
+            // Right Achilles Tendon
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx + w * 0.035f, h * 0.820f),
+                Offset(cx + w * 0.055f, h * 0.820f),
+                Offset(cx + w * 0.058f, h * 0.890f),
+                Offset(cx + w * 0.032f, h * 0.890f)
+            )
+
+            // 11. HEELS & FEET
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx - w * 0.060f, h * 0.895f),
+                Offset(cx - w * 0.030f, h * 0.895f),
+                Offset(cx - w * 0.032f, h * 0.945f),
+                Offset(cx - w * 0.068f, h * 0.945f)
+            )
+            drawFacetPolygon(baseFacetColor, false, gapStrokeColor,
+                Offset(cx + w * 0.030f, h * 0.895f),
+                Offset(cx + w * 0.060f, h * 0.895f),
+                Offset(cx + w * 0.068f, h * 0.945f),
+                Offset(cx + w * 0.032f, h * 0.945f)
             )
         }
+    }
+}
+
+fun DrawScope.drawFacetPolygon(
+    fillColor: Color,
+    isSelected: Boolean = false,
+    strokeColor: Color = Color(0xFF0C1019),
+    p1: Offset,
+    p2: Offset,
+    p3: Offset,
+    p4: Offset? = null,
+    p5: Offset? = null,
+    p6: Offset? = null
+) {
+    val points = if (p6 != null) listOf(p1, p2, p3, p4!!, p5!!, p6)
+    else if (p5 != null) listOf(p1, p2, p3, p4!!, p5)
+    else if (p4 != null) listOf(p1, p2, p3, p4)
+    else listOf(p1, p2, p3)
+
+    val path = Path().apply {
+        moveTo(points[0].x, points[0].y)
+        for (i in 1 until points.size) {
+            lineTo(points[i].x, points[i].y)
+        }
+        close()
+    }
+    drawPath(path, color = fillColor, style = Fill)
+    drawPath(path, color = strokeColor, style = Stroke(width = 2.2f))
+    if (isSelected) {
+        drawPath(path, color = Color.White, style = Stroke(width = 3.5f))
     }
 }
 
@@ -994,7 +1395,7 @@ fun LegendChip(color: Color, text: String) {
 }
 
 @Composable
-fun AnatomicalBodyCanvas(
+fun SculptedAnatomyCanvas(
     isFront: Boolean,
     activities: Map<MuscleGroup, MuscleActivity>,
     selectedMuscle: MuscleGroup?,
@@ -1005,7 +1406,7 @@ fun AnatomicalBodyCanvas(
     calfScale: Float = 1.0f,
     onSelectMuscle: (MuscleGroup) -> Unit
 ) {
-    SculptedAnatomyCanvas(
+    FacetedMuscleCanvas(
         isFront = isFront,
         activities = activities,
         selectedMuscle = selectedMuscle,
@@ -1018,3 +1419,27 @@ fun AnatomicalBodyCanvas(
     )
 }
 
+@Composable
+fun AnatomicalBodyCanvas(
+    isFront: Boolean,
+    activities: Map<MuscleGroup, MuscleActivity>,
+    selectedMuscle: MuscleGroup?,
+    chestScale: Float = 1.0f,
+    waistScale: Float = 1.0f,
+    armScale: Float = 1.0f,
+    legScale: Float = 1.0f,
+    calfScale: Float = 1.0f,
+    onSelectMuscle: (MuscleGroup) -> Unit
+) {
+    FacetedMuscleCanvas(
+        isFront = isFront,
+        activities = activities,
+        selectedMuscle = selectedMuscle,
+        chestScale = chestScale,
+        waistScale = waistScale,
+        armScale = armScale,
+        legScale = legScale,
+        calfScale = calfScale,
+        onSelectMuscle = onSelectMuscle
+    )
+}

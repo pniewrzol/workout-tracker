@@ -321,8 +321,8 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                             viewModel.selectExercise(exId)
                             currentScreenRoute = "detail_$exId"
                         },
-                        onCreatePlan = { name, desc ->
-                            viewModel.createPlan(name, desc)
+                        onCreatePlan = { name, desc, includeWarmup, workouts ->
+                            viewModel.createPlan(name, desc, includeWarmup, workouts)
                         },
                         onSetActivePlan = { planId ->
                             viewModel.setActivePlan(planId)
@@ -343,6 +343,9 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                             previousDetailRoute = "exercises"
                             viewModel.selectExercise(exId)
                             currentScreenRoute = "detail_$exId"
+                        },
+                        onCreateExercise = { newEx ->
+                            viewModel.createCustomExercise(newEx)
                         }
                     )
                 }

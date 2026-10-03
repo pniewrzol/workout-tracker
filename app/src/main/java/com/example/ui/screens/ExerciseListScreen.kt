@@ -18,13 +18,19 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -33,6 +39,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.Exercise
@@ -55,12 +63,20 @@ import com.example.ui.theme.SuccessGreen
 fun ExerciseListScreen(
     exercises: List<Exercise>,
     onExerciseClick: (Long) -> Unit,
+    onCreateExercise: ((Exercise) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedSection by remember { mutableStateOf("Wszystkie") }
+    var showCreateDialog by remember { mutableStateOf(false) }
 
-    val sections = listOf("Wszystkie", "Trening A", "Trening B", "Trening C", "Rozgrzewka", "Mobilizacja")
+    // Distinct sections dynamically plus standard ones
+    val sections = remember(exercises) {
+        val list = mutableListOf("Wszystkie")
+        val exerciseSections = exercises.map { it.section }.distinct().filter { it.isNotBlank() }
+        list.addAll(exerciseSections)
+        list.distinct()
+    }
 
     val filteredExercises = remember(exercises, searchQuery, selectedSection) {
         exercises.filter { ex ->
@@ -79,84 +95,344 @@ fun ExerciseListScreen(
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
-    ) {
-        // Search bar
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 12.dp)
-                .testTag("exercise_search_input"),
-            placeholder = { Text("Szukaj ćwiczenia, mięśni, sprzętu...") },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+        ) {
+            // Search bar
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp)
+                    .testTag("exercise_search_input"),
+                placeholder = { Text("Szukaj ćwiczenia, mięśni, sprzętu...") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(
+                                imageVector = Icons.Default.Clear,
+                                contentDescription = "Wyczyść"
+                            )
+                        }
+                    }
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp)
+            )
+
+            // Section filter chips
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(sections) { sec ->
+                    val isSelected = selectedSection == sec
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { selectedSection = sec },
+                        label = { Text(sec) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = AthleticOrange,
+                            selectedLabelColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                }
+            }
+
+            // Counter & info
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Liczba ćwiczeń: ${filteredExercises.size}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (onCreateExercise != null) {
+                    Text(
+                        text = "+ Dodaj własne ćwiczenie",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = AthleticOrange,
+                        modifier = Modifier.clickable { showCreateDialog = true }
+                    )
+                }
+            }
+
+            // Exercise List
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 90.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(filteredExercises, key = { it.id }) { exercise ->
+                    ExerciseListItemCard(
+                        exercise = exercise,
+                        onClick = { onExerciseClick(exercise.id) }
+                    )
+                }
+            }
+        }
+
+        // Floating Action Button to create exercise directly
+        if (onCreateExercise != null) {
+            ExtendedFloatingActionButton(
+                onClick = { showCreateDialog = true },
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                text = { Text("Nowe ćwiczenie", fontWeight = FontWeight.Bold) },
+                containerColor = AthleticOrange,
+                contentColor = Color.White,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 80.dp)
+                    .testTag("fab_add_exercise")
+            )
+        }
+    }
+
+    // Dialog: Create Exercise Directly
+    if (showCreateDialog && onCreateExercise != null) {
+        var exName by remember { mutableStateOf("") }
+        var exCode by remember { mutableStateOf("") }
+        var exSection by remember { mutableStateOf(if (selectedSection != "Wszystkie") selectedSection else "Trening A") }
+        var isCustomSection by remember { mutableStateOf(false) }
+        var customSectionName by remember { mutableStateOf("") }
+        var exBodyPart by remember { mutableStateOf("Klatka piersiowa") }
+        var exEquipment by remember { mutableStateOf("Hantle") }
+        var exType by remember { mutableStateOf("WEIGHT_AND_REPS") }
+        var exSets by remember { mutableStateOf("4") }
+        var exReps by remember { mutableStateOf("10,10,8,8") }
+        var exRest by remember { mutableStateOf("90") }
+        var exCues by remember { mutableStateOf("") }
+
+        val activeSection = if (isCustomSection && customSectionName.isNotBlank()) customSectionName.trim() else exSection
+
+        AlertDialog(
+            onDismissRequest = { showCreateDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.FitnessCenter, contentDescription = null, tint = AthleticOrange)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Nowe Ćwiczenie", fontWeight = FontWeight.Bold)
+                }
             },
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { searchQuery = "" }) {
-                        Icon(
-                            imageVector = Icons.Default.Clear,
-                            contentDescription = "Wyczyść"
+            text = {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    item {
+                        OutlinedTextField(
+                            value = exName,
+                            onValueChange = { exName = it },
+                            label = { Text("Nazwa ćwiczenia *") },
+                            placeholder = { Text("np. Wyciskanie hantli na skosie") },
+                            modifier = Modifier.fillMaxWidth().testTag("input_ex_name"),
+                            singleLine = true
+                        )
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = exCode,
+                            onValueChange = { exCode = it },
+                            label = { Text("Własna numeracja / Kod (opcjonalnie)") },
+                            placeholder = { Text("np. A.5, B.1, W1, 1.") },
+                            modifier = Modifier.fillMaxWidth().testTag("input_ex_code"),
+                            singleLine = true
+                        )
+                    }
+
+                    item {
+                        Text("Kategoria / Sekcja treningowa:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        val availableSections = listOf("Trening A", "Trening B", "Trening C", "Rozgrzewka", "Mobilizacja", "+ Własna sekcja")
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(availableSections) { sec ->
+                                val isSelected = if (sec == "+ Własna sekcja") isCustomSection else (!isCustomSection && exSection == sec)
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = {
+                                        if (sec == "+ Własna sekcja") {
+                                            isCustomSection = true
+                                        } else {
+                                            isCustomSection = false
+                                            exSection = sec
+                                        }
+                                    },
+                                    label = { Text(sec, fontSize = 11.sp) }
+                                )
+                            }
+                        }
+                        if (isCustomSection) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedTextField(
+                                value = customSectionName,
+                                onValueChange = { customSectionName = it },
+                                label = { Text("Nazwa własnej sekcji") },
+                                placeholder = { Text("np. Trening D, Ramiona") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                        }
+                    }
+
+                    item {
+                        Text("Główna partia mięśniowa:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        val bodyParts = listOf("Klatka piersiowa", "Plecy", "Barki", "Biceps", "Triceps", "Uda / Czworogłowe", "Dwugłowe (Tył ud)", "Pośladki", "Łydki", "Brzuch / Core", "Cardio")
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(bodyParts) { part ->
+                                FilterChip(
+                                    selected = exBodyPart == part,
+                                    onClick = { exBodyPart = part },
+                                    label = { Text(part, fontSize = 11.sp) }
+                                )
+                            }
+                        }
+                    }
+
+                    item {
+                        Text("Sprzęt:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        val equipments = listOf("Hantle", "Sztanga", "Maszyna", "Wyciąg", "Masa ciała", "Gumy / Taśmy", "Inny")
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(equipments) { eq ->
+                                FilterChip(
+                                    selected = exEquipment == eq,
+                                    onClick = { exEquipment = eq },
+                                    label = { Text(eq, fontSize = 11.sp) }
+                                )
+                            }
+                        }
+                    }
+
+                    item {
+                        Text("Typ rejestracji wyniku:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf(
+                                "WEIGHT_AND_REPS" to "Ciężar + Powt.",
+                                "BODYWEIGHT_REPS" to "Masa ciała",
+                                "TIME" to "Czas (sek)",
+                                "DISTANCE" to "Dystans (m)"
+                            ).forEach { (typeVal, label) ->
+                                FilterChip(
+                                    selected = exType == typeVal,
+                                    onClick = { exType = typeVal },
+                                    label = { Text(label, fontSize = 10.sp) }
+                                )
+                            }
+                        }
+                    }
+
+                    item {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = exSets,
+                                onValueChange = { exSets = it },
+                                label = { Text("Serie") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = exReps,
+                                onValueChange = { exReps = it },
+                                label = { Text("Powtórzenia / Czas") },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = exRest,
+                            onValueChange = { exRest = it },
+                            label = { Text("Przerwa (sekundy)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = exCues,
+                            onValueChange = { exCues = it },
+                            label = { Text("Wskazówki techniczne / uwagi") },
+                            placeholder = { Text("np. Kontrola fazy ekscentrycznej, pauza 1s") },
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
             },
-            singleLine = true,
-            shape = RoundedCornerShape(14.dp)
-        )
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (exName.isNotBlank()) {
+                            val setsInt = exSets.toIntOrNull() ?: 4
+                            val restInt = exRest.toIntOrNull() ?: 90
+                            val finalCode = if (exCode.isNotBlank()) exCode.trim() else {
+                                val prefix = activeSection.take(1).uppercase()
+                                "$prefix.${exercises.count { it.section.equals(activeSection, ignoreCase = true) } + 1}"
+                            }
 
-        // Section filter chips
-        LazyRow(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(sections) { sec ->
-                val isSelected = selectedSection == sec
-                FilterChip(
-                    selected = isSelected,
-                    onClick = { selectedSection = sec },
-                    label = { Text(sec) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = AthleticOrange,
-                        selectedLabelColor = Color.White
-                    ),
-                    shape = RoundedCornerShape(8.dp)
-                )
+                            val newExercise = Exercise(
+                                name = exName.trim(),
+                                section = activeSection,
+                                code = finalCode,
+                                targetSets = setsInt,
+                                targetReps = exReps.trim(),
+                                restSeconds = restInt,
+                                restDisplay = "${restInt}s",
+                                bodyPart = exBodyPart,
+                                equipment = exEquipment,
+                                primaryMuscles = exBodyPart,
+                                secondaryMuscles = "",
+                                cues = exCues.trim().ifEmpty { "Prawidłowa technika i kontrola powtórzenia" },
+                                instructions = "Wykonaj $setsInt serii roboczych z zachowaniem optymalnego tempa.",
+                                isCustom = true,
+                                measurementType = exType
+                            )
+                            onCreateExercise(newExercise)
+                            showCreateDialog = false
+                        }
+                    },
+                    enabled = exName.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AthleticOrange),
+                    modifier = Modifier.testTag("btn_save_exercise")
+                ) {
+                    Text("Zapisz ćwiczenie")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateDialog = false }) {
+                    Text("Anuluj")
+                }
             }
-        }
-
-        // Counter
-        Text(
-            text = "Liczba ćwiczeń: ${filteredExercises.size}",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 8.dp)
         )
-
-        // Exercise List
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 90.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            items(filteredExercises, key = { it.id }) { exercise ->
-                ExerciseListItemCard(
-                    exercise = exercise,
-                    onClick = { onExerciseClick(exercise.id) }
-                )
-            }
-        }
     }
 }
 

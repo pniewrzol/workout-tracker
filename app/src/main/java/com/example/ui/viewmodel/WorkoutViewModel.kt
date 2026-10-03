@@ -181,9 +181,14 @@ class WorkoutViewModel(
         }
     }
 
-    fun createPlan(name: String, description: String = "") {
+    fun createPlan(
+        name: String,
+        description: String = "",
+        includeWarmupAndMobility: Boolean = true,
+        initialWorkouts: List<Pair<String, String>> = emptyList()
+    ) {
         viewModelScope.launch {
-            repository.createPlan(name, description)
+            repository.createPlan(name, description, includeWarmupAndMobility, initialWorkouts)
         }
     }
 
@@ -202,6 +207,18 @@ class WorkoutViewModel(
     fun createCustomExercise(exercise: Exercise) {
         viewModelScope.launch {
             repository.createCustomExercise(exercise)
+        }
+    }
+
+    fun deleteExercise(exercise: Exercise) {
+        viewModelScope.launch {
+            repository.deleteExercise(exercise)
+        }
+    }
+
+    fun deleteExerciseById(id: Long) {
+        viewModelScope.launch {
+            repository.deleteExerciseById(id)
         }
     }
 

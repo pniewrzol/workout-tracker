@@ -70,7 +70,7 @@ fun WorkoutHistoryScreen(
 ) {
     val exerciseMap = remember(allExercises) { allExercises.associateBy { it.id } }
 
-    var selectedFilterIndex by remember { mutableStateOf(0) } // 0: Wszystkie, 1: Treningi główne, 2: Rozgrzewka & Mobilizacja
+    var selectedFilterIndex by remember { mutableStateOf(1) } // 1: Treningi główne (domyślny), 0: Wszystkie, 2: Rozgrzewka & Mobilizacja
 
     val mainSessions = remember(sessions) { sessions.filter { it.isMainWorkout } }
     val warmupSessions = remember(sessions) { sessions.filter { !it.isMainWorkout } }

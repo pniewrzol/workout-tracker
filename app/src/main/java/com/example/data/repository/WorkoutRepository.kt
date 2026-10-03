@@ -414,15 +414,42 @@ class WorkoutRepository(
         return workoutDao.getCompletedSetsForExercise(exerciseId)
     }
 
-    suspend fun createPlan(name: String, description: String = ""): Long = withContext(Dispatchers.IO) {
+    suspend fun createPlan(
+        name: String,
+        description: String = "",
+        includeWarmupAndMobility: Boolean = false,
+        initialWorkouts: List<Pair<String, String>> = emptyList()
+    ): Long = withContext(Dispatchers.IO) {
+        val validWorkouts = initialWorkouts.map { it.second.trim() }.filter { it.isNotBlank() }
+        val workoutsRawStr = validWorkouts.joinToString(",")
         val plan = WorkoutPlan(
             name = name,
             description = description,
             createdAt = System.currentTimeMillis(),
-            isActive = true
+            isActive = true,
+            workoutsRaw = workoutsRawStr
         )
         val id = workoutPlanDao.insertPlan(plan)
         workoutPlanDao.setActivePlan(id)
+
+        if (includeWarmupAndMobility) {
+            val allEx = exerciseDao.getAllExercisesList()
+            val warmups = allEx.filter {
+                (it.section == "Rozgrzewka" || it.section == "Mobilizacja") && (it.planId == 0L || it.planId == 1L)
+            }
+            for (w in warmups) {
+                exerciseDao.insertExercise(
+                    w.copy(
+                        id = 0,
+                        planId = id,
+                        isCustom = true
+                    )
+                )
+            }
+        }
+
+        // NOTE: No dummy exercises are created automatically. The user adds exercises manually as desired.
+
         id
     }
 
@@ -440,6 +467,14 @@ class WorkoutRepository(
 
     suspend fun createCustomExercise(exercise: Exercise): Long = withContext(Dispatchers.IO) {
         exerciseDao.insertExercise(exercise)
+    }
+
+    suspend fun deleteExercise(exercise: Exercise) = withContext(Dispatchers.IO) {
+        exerciseDao.deleteExercise(exercise)
+    }
+
+    suspend fun deleteExerciseById(id: Long) = withContext(Dispatchers.IO) {
+        exerciseDao.deleteExerciseById(id)
     }
 
     suspend fun insertBodyMeasurement(measurement: BodyMeasurement): Long = withContext(Dispatchers.IO) {

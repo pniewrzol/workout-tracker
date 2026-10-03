@@ -99,7 +99,7 @@ fun HomeScreen(
     onNavigateToMeasurements: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onExerciseClick: (Long) -> Unit,
-    onCreatePlan: (String, String) -> Unit = { _, _ -> },
+    onCreatePlan: (String, String, Boolean, List<Pair<String, String>>) -> Unit = { _, _, _, _ -> },
     onSetActivePlan: (Long) -> Unit = {},
     onDeletePlan: (WorkoutPlan) -> Unit = {},
     onCreateCustomExercise: (Exercise) -> Unit = {},
@@ -127,6 +127,15 @@ fun HomeScreen(
     val mainWorkouts = remember(completedSessions) { completedSessions.filter { it.isMainWorkout } }
     val totalWorkoutsCount = mainWorkouts.size
     val totalSetsCount = mainWorkoutCompletedSets.size
+
+    val currentPlanId = activePlan?.id ?: 1L
+    val activePlanWarmups = remember(allExercises, currentPlanId) {
+        if (currentPlanId == 1L) {
+            allExercises.filter { (it.section == "Rozgrzewka" || it.section == "Mobilizacja") && (it.planId == 1L || it.planId == 0L) }
+        } else {
+            allExercises.filter { (it.section == "Rozgrzewka" || it.section == "Mobilizacja") && it.planId == currentPlanId }
+        }
+    }
 
     LazyColumn(
         modifier = modifier
@@ -412,24 +421,24 @@ fun HomeScreen(
             }
         }
 
-        // 1. Rozgrzewka i Mobilizacja PONAD Treningami A-C!
-        item {
-            WorkoutPlanCard(
-                title = "Rozgrzewka i Mobilizacja",
-                subtitle = "Row erg, Air bike + 10 ćwiczeń mobilizacyjnych i aktywacji stawowej (zalecana przed każdym treningiem)",
-                exerciseCount = 12,
-                setsTotal = 12,
-                estimatedMin = "15 min",
-                badgeColor = SuccessGreen,
-                onStart = {
-                    val exercises = allExercises.filter { it.section == "Rozgrzewka" || it.section == "Mobilizacja" }
-                    onStartWorkout("Rozgrzewka & Mobilizacja", exercises)
-                }
-            )
+        // 1. Rozgrzewka i Mobilizacja (pokazuj TYLKO jeśli ten plan zawiera ćwiczenia rozgrzewkowe!)
+        if (activePlanWarmups.isNotEmpty()) {
+            item {
+                WorkoutPlanCard(
+                    title = "Rozgrzewka i Mobilizacja",
+                    subtitle = "Row erg, Air bike + ćwiczenia mobilizacyjne i aktywacja stawowa (zalecana przed treningiem)",
+                    exerciseCount = activePlanWarmups.size,
+                    setsTotal = activePlanWarmups.sumOf { it.targetSets }.coerceAtLeast(activePlanWarmups.size),
+                    estimatedMin = "15 min",
+                    badgeColor = SuccessGreen,
+                    onStart = {
+                        onStartWorkout("Rozgrzewka & Mobilizacja", activePlanWarmups)
+                    }
+                )
+            }
         }
 
         // 2. Workouts based on the active plan
-        val currentPlanId = activePlan?.id ?: 1L
         if (currentPlanId == 1L) {
             // Default 3-day FBW Plan (A, B, C)
             item {
@@ -636,8 +645,8 @@ fun HomeScreen(
             onSelectActivePlan = { planId ->
                 onSetActivePlan(planId)
             },
-            onCreatePlan = { name, desc ->
-                onCreatePlan(name, desc)
+            onCreatePlan = { name, desc, includeWarmup, workouts ->
+                onCreatePlan(name, desc, includeWarmup, workouts)
             },
             onDeletePlan = { plan ->
                 onDeletePlan(plan)

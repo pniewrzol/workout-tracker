@@ -10,5 +10,11 @@ data class WorkoutPlan(
     val name: String,
     val description: String = "",
     val createdAt: Long = System.currentTimeMillis(),
-    val isActive: Boolean = true
-)
+    val isActive: Boolean = true,
+    val workoutsRaw: String = ""
+) {
+    val workoutsList: List<String>
+        get() = if (workoutsRaw.isNotBlank()) {
+            workoutsRaw.split(",").map { it.trim() }.filter { it.isNotBlank() }
+        } else emptyList()
+}
