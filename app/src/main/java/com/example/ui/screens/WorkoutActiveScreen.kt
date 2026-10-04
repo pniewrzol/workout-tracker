@@ -339,6 +339,11 @@ fun WorkoutActiveScreen(
                                     when (exercise.getEffectiveMeasurementType()) {
                                         ExerciseType.BODYWEIGHT_REPS -> "${s.reps} powt."
                                         ExerciseType.DISTANCE -> "${s.distanceMeters?.toInt() ?: 0}m"
+                                        ExerciseType.WEIGHT_AND_DISTANCE -> {
+                                            val wStr = if (s.weightKg % 1f == 0f) s.weightKg.toInt().toString() else s.weightKg.toString()
+                                            val dStr = if ((s.distanceMeters ?: 0f) % 1f == 0f) (s.distanceMeters ?: 0f).toInt().toString() else (s.distanceMeters ?: 0f).toString()
+                                            "${wStr}kg × ${dStr}m"
+                                        }
                                         ExerciseType.TIME -> {
                                             val sec = s.timeSeconds ?: 0
                                             if (sec >= 60 && sec % 60 == 0) "${sec / 60}m" else "${sec}s"
@@ -363,13 +368,16 @@ fun WorkoutActiveScreen(
                             onAddSet = {
                                 val nextSetNum = (exerciseSets.maxOfOrNull { it.setNumber } ?: 0) + 1
                                 val lastSet = exerciseSets.lastOrNull()
-                                val isDist = exercise.isDistanceBased()
-                                val isTime = exercise.isTimeBased()
-                                val isBw = exercise.isBodyweightBased()
-                                val defReps = if (!isDist && !isTime) (lastSet?.reps ?: 10) else 0
-                                val defWeight = if (!isDist && !isTime && !isBw) (lastSet?.weightKg ?: 0f) else 0f
+                                val effType = exercise.getEffectiveMeasurementType()
+                                val isDistOnly = effType == ExerciseType.DISTANCE
+                                val isWeightDist = effType == ExerciseType.WEIGHT_AND_DISTANCE
+                                val isTime = effType == ExerciseType.TIME
+                                val isBw = effType == ExerciseType.BODYWEIGHT_REPS
+
+                                val defReps = if (!isDistOnly && !isWeightDist && !isTime) (lastSet?.reps ?: 10) else 0
+                                val defWeight = if (isWeightDist || (!isDistOnly && !isTime && !isBw)) (lastSet?.weightKg ?: 0f) else 0f
                                 val defTime = if (isTime) (lastSet?.timeSeconds ?: 30) else null
-                                val defDist = if (isDist) (lastSet?.distanceMeters ?: 40f) else null
+                                val defDist = if (isDistOnly || isWeightDist) (lastSet?.distanceMeters ?: 40f) else null
 
                                 onAddSet(
                                     exercise.id,
@@ -574,7 +582,7 @@ fun ExerciseWorkoutCard(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 val specLabel = when (measurementType) {
-                    ExerciseType.DISTANCE -> "Dystans"
+                    ExerciseType.DISTANCE, ExerciseType.WEIGHT_AND_DISTANCE -> "Dystans"
                     ExerciseType.TIME -> "Czas"
                     ExerciseType.BODYWEIGHT_REPS, ExerciseType.WEIGHT_AND_REPS -> "Powt."
                 }
@@ -609,6 +617,24 @@ fun ExerciseWorkoutCard(
 
                 when (measurementType) {
                     ExerciseType.DISTANCE -> {
+                        Text(
+                            text = "DYSTANS",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f),
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    ExerciseType.WEIGHT_AND_DISTANCE -> {
+                        Text(
+                            text = "CIĘŻAR (KG)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f),
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                         Text(
                             text = "DYSTANS",
                             style = MaterialTheme.typography.labelSmall,
@@ -673,6 +699,15 @@ fun ExerciseWorkoutCard(
             // Set Rows
             sets.forEach { setLog ->
                 when (measurementType) {
+                    ExerciseType.WEIGHT_AND_DISTANCE -> {
+                        SetLogWeightDistanceRow(
+                            setLog = setLog,
+                            canDelete = sets.size > 1,
+                            onToggleCompleted = { onToggleCompleted(setLog) },
+                            onUpdateSet = onUpdateSet,
+                            onDeleteSet = { onRemoveSet(setLog) }
+                        )
+                    }
                     ExerciseType.DISTANCE -> {
                         SetLogDistanceRow(
                             setLog = setLog,
@@ -932,6 +967,188 @@ fun SetLogDistanceRow(
             }
         } else {
             Spacer(modifier = Modifier.width(6.dp))
+        }
+
+        // Complete Checkbox Button
+        IconButton(
+            onClick = onToggleCompleted,
+            modifier = Modifier
+                .size(38.dp)
+                .background(
+                    if (isDone) SuccessGreen else MaterialTheme.colorScheme.surfaceVariant,
+                    RoundedCornerShape(8.dp)
+                )
+                .testTag("set_checkbox_${setLog.id}")
+        ) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = if (isDone) "Ukończona" else "Zaznacz jako ukończona",
+                tint = if (isDone) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Row for loaded distance exercises (e.g. Spacer farmera / Farmers walk with dumbbells or trap bar).
+ * Displays BOTH weight (kg) and distance (meters) with steppers and direct input.
+ */
+@Composable
+fun SetLogWeightDistanceRow(
+    setLog: WorkoutSetLog,
+    canDelete: Boolean,
+    onToggleCompleted: () -> Unit,
+    onUpdateSet: (WorkoutSetLog) -> Unit,
+    onDeleteSet: () -> Unit
+) {
+    var weightText by remember(setLog.weightKg) {
+        mutableStateOf(if (setLog.weightKg == 0f) "" else setLog.weightKg.toString().removeSuffix(".0"))
+    }
+    val currentMeters = setLog.distanceMeters ?: 40f
+    var distText by remember(setLog.distanceMeters) {
+        val formatted = if (currentMeters % 1f == 0f) {
+            currentMeters.toInt().toString()
+        } else {
+            currentMeters.toString()
+        }
+        mutableStateOf(formatted)
+    }
+
+    val isDone = setLog.isCompleted
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                if (isDone) SuccessGreen.copy(alpha = 0.12f) else Color.Transparent
+            )
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Set number
+        Text(
+            text = "${setLog.setNumber}",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.width(36.dp),
+            color = if (isDone) SuccessGreen else MaterialTheme.colorScheme.onSurface
+        )
+
+        // Weight Input (KG)
+        Row(
+            modifier = Modifier.weight(1.15f),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = {
+                    val current = setLog.weightKg
+                    val newWeight = (current - 2.5f).coerceAtLeast(0f)
+                    onUpdateSet(setLog.copy(weightKg = newWeight))
+                },
+                modifier = Modifier.size(26.dp)
+            ) {
+                Text("-", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
+            Spacer(modifier = Modifier.width(2.dp))
+
+            SetNumberInputBox(
+                value = weightText,
+                onValueChange = { newVal ->
+                    val filtered = newVal.filter { it.isDigit() || it == '.' }
+                    weightText = filtered
+                    val w = filtered.toFloatOrNull() ?: 0f
+                    onUpdateSet(setLog.copy(weightKg = w))
+                },
+                placeholder = "0",
+                suffix = "kg",
+                keyboardType = KeyboardType.Decimal,
+                modifier = Modifier.width(62.dp),
+                isCompleted = isDone
+            )
+
+            Spacer(modifier = Modifier.width(2.dp))
+
+            IconButton(
+                onClick = {
+                    val current = setLog.weightKg
+                    val newWeight = current + 2.5f
+                    onUpdateSet(setLog.copy(weightKg = newWeight))
+                },
+                modifier = Modifier.size(26.dp)
+            ) {
+                Text("+", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AthleticOrange)
+            }
+        }
+
+        Spacer(modifier = Modifier.width(4.dp))
+
+        // Distance Input (M)
+        Row(
+            modifier = Modifier.weight(1.15f),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val step = if (currentMeters >= 100f) 50f else 5f
+
+            IconButton(
+                onClick = {
+                    val newDist = (currentMeters - step).coerceAtLeast(0f)
+                    onUpdateSet(setLog.copy(distanceMeters = newDist))
+                },
+                modifier = Modifier.size(26.dp)
+            ) {
+                Text("-", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
+            Spacer(modifier = Modifier.width(2.dp))
+
+            SetNumberInputBox(
+                value = distText,
+                onValueChange = { newVal ->
+                    val filtered = newVal.filter { it.isDigit() || it == '.' }
+                    distText = filtered
+                    val d = filtered.toFloatOrNull() ?: 0f
+                    onUpdateSet(setLog.copy(distanceMeters = d))
+                },
+                placeholder = "0",
+                suffix = "m",
+                keyboardType = KeyboardType.Decimal,
+                modifier = Modifier.width(62.dp),
+                isCompleted = isDone
+            )
+
+            Spacer(modifier = Modifier.width(2.dp))
+
+            IconButton(
+                onClick = {
+                    val newDist = currentMeters + step
+                    onUpdateSet(setLog.copy(distanceMeters = newDist))
+                },
+                modifier = Modifier.size(26.dp)
+            ) {
+                Text("+", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AthleticOrange)
+            }
+        }
+
+        // Delete button if > 1 set
+        if (canDelete) {
+            IconButton(
+                onClick = onDeleteSet,
+                modifier = Modifier.size(28.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Usuń serię",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        } else {
+            Spacer(modifier = Modifier.width(28.dp))
         }
 
         // Complete Checkbox Button

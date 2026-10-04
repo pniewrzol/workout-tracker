@@ -222,6 +222,18 @@ class WorkoutViewModel(
         }
     }
 
+    fun deleteCategory(section: String) {
+        viewModelScope.launch {
+            repository.deleteCategory(section)
+        }
+    }
+
+    fun deleteWorkoutFromPlan(plan: com.example.data.model.WorkoutPlan, workoutSection: String) {
+        viewModelScope.launch {
+            repository.deleteWorkoutFromPlan(plan, workoutSection)
+        }
+    }
+
     fun addBodyMeasurement(measurement: BodyMeasurement) {
         viewModelScope.launch {
             repository.insertBodyMeasurement(measurement)

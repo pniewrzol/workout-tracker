@@ -17,12 +17,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
@@ -64,11 +67,17 @@ fun ExerciseListScreen(
     exercises: List<Exercise>,
     onExerciseClick: (Long) -> Unit,
     onCreateExercise: ((Exercise) -> Unit)? = null,
+    onDeleteExercise: ((Exercise) -> Unit)? = null,
+    onDeleteCategory: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedSection by remember { mutableStateOf("Wszystkie") }
     var showCreateDialog by remember { mutableStateOf(false) }
+    var exerciseToDelete by remember { mutableStateOf<Exercise?>(null) }
+    var categoryToDelete by remember { mutableStateOf<String?>(null) }
+
+    val listState = rememberLazyListState()
 
     // Distinct sections dynamically plus standard ones
     val sections = remember(exercises) {
@@ -153,7 +162,7 @@ fun ExerciseListScreen(
                 }
             }
 
-            // Counter & info
+            // Counter & info & category actions
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -161,14 +170,43 @@ fun ExerciseListScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Liczba ćwiczeń: ${filteredExercises.size}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Ćwiczenia: ${filteredExercises.size}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (selectedSection != "Wszystkie" && onDeleteCategory != null) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
+                            modifier = Modifier.clickable { categoryToDelete = selectedSection }
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Usuń kategorię",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "Usuń kategorię",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
                 if (onCreateExercise != null) {
                     Text(
-                        text = "+ Dodaj własne ćwiczenie",
+                        text = "+ Dodaj ćwiczenie",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = AthleticOrange,
@@ -177,8 +215,9 @@ fun ExerciseListScreen(
                 }
             }
 
-            // Exercise List
+            // Exercise List with persistent scroll state
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 90.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -186,7 +225,10 @@ fun ExerciseListScreen(
                 items(filteredExercises, key = { it.id }) { exercise ->
                     ExerciseListItemCard(
                         exercise = exercise,
-                        onClick = { onExerciseClick(exercise.id) }
+                        onClick = { onExerciseClick(exercise.id) },
+                        onDeleteClick = if (onDeleteExercise != null) {
+                            { exerciseToDelete = exercise }
+                        } else null
                     )
                 }
             }
@@ -333,17 +375,18 @@ fun ExerciseListScreen(
 
                     item {
                         Text("Typ rejestracji wyniku:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf(
+                        LazyRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(listOf(
                                 "WEIGHT_AND_REPS" to "Ciężar + Powt.",
+                                "WEIGHT_AND_DISTANCE" to "Ciężar + Dystans (Spacer farmera)",
                                 "BODYWEIGHT_REPS" to "Masa ciała",
                                 "TIME" to "Czas (sek)",
                                 "DISTANCE" to "Dystans (m)"
-                            ).forEach { (typeVal, label) ->
+                            )) { (typeVal, label) ->
                                 FilterChip(
                                     selected = exType == typeVal,
                                     onClick = { exType = typeVal },
-                                    label = { Text(label, fontSize = 10.sp) }
+                                    label = { Text(label, fontSize = 11.sp) }
                                 )
                             }
                         }
@@ -434,12 +477,81 @@ fun ExerciseListScreen(
             }
         )
     }
+
+    // Confirmation dialog: Delete Exercise
+    exerciseToDelete?.let { ex ->
+        AlertDialog(
+            onDismissRequest = { exerciseToDelete = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Usuń ćwiczenie", fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Text("Czy na pewno chcesz usunąć ćwiczenie \"${ex.name}\"? Spowoduje to usunięcie go z aplikacji.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteExercise?.invoke(ex)
+                        exerciseToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Usuń", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { exerciseToDelete = null }) {
+                    Text("Anuluj")
+                }
+            }
+        )
+    }
+
+    // Confirmation dialog: Delete Category
+    categoryToDelete?.let { catName ->
+        val count = exercises.count { it.section.equals(catName, ignoreCase = true) }
+        AlertDialog(
+            onDismissRequest = { categoryToDelete = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.DeleteOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Usuń kategorię", fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Text("Czy na pewno chcesz usunąć kategorię \"$catName\"? Wszystkie ćwiczenia ($count) należące do tej kategorii zostaną usunięte z aplikacji.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteCategory?.invoke(catName)
+                        if (selectedSection == catName) selectedSection = "Wszystkie"
+                        categoryToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Usuń kategorię", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { categoryToDelete = null }) {
+                    Text("Anuluj")
+                }
+            }
+        )
+    }
 }
 
 @Composable
 fun ExerciseListItemCard(
     exercise: Exercise,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDeleteClick: (() -> Unit)? = null
 ) {
     val sectionColor = when (exercise.section) {
         "Trening A" -> AthleticOrange
@@ -525,12 +637,27 @@ fun ExerciseListItemCard(
                 }
             }
 
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                modifier = Modifier.size(16.dp)
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (onDeleteClick != null) {
+                    IconButton(
+                        onClick = onDeleteClick,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Usuń ćwiczenie",
+                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
         }
     }
 }

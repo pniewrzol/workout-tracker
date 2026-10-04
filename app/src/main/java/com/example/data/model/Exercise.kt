@@ -7,7 +7,8 @@ enum class ExerciseType {
     WEIGHT_AND_REPS,
     BODYWEIGHT_REPS,
     TIME,
-    DISTANCE
+    DISTANCE,
+    WEIGHT_AND_DISTANCE
 }
 
 @Entity(tableName = "exercises")
@@ -30,11 +31,22 @@ data class Exercise(
     val cues: String,
     val instructions: String,
     val isCustom: Boolean = false,
-    val measurementType: String = "WEIGHT_AND_REPS", // "WEIGHT_AND_REPS", "BODYWEIGHT_REPS", "TIME", "DISTANCE"
+    val measurementType: String = "WEIGHT_AND_REPS", // "WEIGHT_AND_REPS", "BODYWEIGHT_REPS", "TIME", "DISTANCE", "WEIGHT_AND_DISTANCE"
     val planId: Long = 1L
 ) {
+    fun isWeightAndDistanceBased(): Boolean {
+        if (measurementType == "WEIGHT_AND_DISTANCE") return true
+        val eq = equipment.lowercase()
+        val nm = name.lowercase()
+        val isCarry = nm.contains("farmer") || nm.contains("spacer") || nm.contains("carry")
+        if (isCarry) return true
+        val hasWeights = eq.contains("dumbbell") || eq.contains("trap bar") || eq.contains("barbell") || 
+                         eq.contains("kettlebell") || eq.contains("plate") || eq.contains("hantl")
+        return isDistanceBased() && hasWeights
+    }
+
     fun isDistanceBased(): Boolean {
-        if (measurementType == "DISTANCE") return true
+        if (measurementType == "DISTANCE" || measurementType == "WEIGHT_AND_DISTANCE") return true
         if (measurementType == "TIME" || measurementType == "WEIGHT_AND_REPS" || measurementType == "BODYWEIGHT_REPS") return false
         val distanceRegex = Regex("""(^|[,\s])\d+(\.\d+)?\s*m($|[,\s])""", RegexOption.IGNORE_CASE)
         return distanceRegex.containsMatchIn(targetReps)
@@ -42,14 +54,14 @@ data class Exercise(
 
     fun isTimeBased(): Boolean {
         if (measurementType == "TIME") return true
-        if (measurementType == "DISTANCE" || measurementType == "WEIGHT_AND_REPS" || measurementType == "BODYWEIGHT_REPS") return false
+        if (measurementType == "DISTANCE" || measurementType == "WEIGHT_AND_DISTANCE" || measurementType == "WEIGHT_AND_REPS" || measurementType == "BODYWEIGHT_REPS") return false
         val timeRegex = Regex("""(^|[,\s])\d+(\.\d+)?\s*(s|sek|sekund|min|minut)($|[,\s])""", RegexOption.IGNORE_CASE)
         return timeRegex.containsMatchIn(targetReps)
     }
 
     fun isBodyweightBased(): Boolean {
         if (measurementType == "BODYWEIGHT_REPS") return true
-        if (measurementType == "DISTANCE" || measurementType == "TIME") return false
+        if (measurementType == "DISTANCE" || measurementType == "WEIGHT_AND_DISTANCE" || measurementType == "TIME") return false
         if (measurementType == "WEIGHT_AND_REPS" && equipment.isNotBlank()) {
             val eq = equipment.lowercase()
             val isExplicitWeight = eq.contains("dumbbell") || eq.contains("barbell") || 
@@ -65,6 +77,7 @@ data class Exercise(
 
     fun getEffectiveMeasurementType(): ExerciseType {
         return when {
+            isWeightAndDistanceBased() -> ExerciseType.WEIGHT_AND_DISTANCE
             isDistanceBased() -> ExerciseType.DISTANCE
             isTimeBased() -> ExerciseType.TIME
             isBodyweightBased() -> ExerciseType.BODYWEIGHT_REPS

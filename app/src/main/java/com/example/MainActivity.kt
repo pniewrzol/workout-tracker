@@ -36,6 +36,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -332,6 +333,12 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                         },
                         onCreateCustomExercise = { ex ->
                             viewModel.createCustomExercise(ex)
+                        },
+                        onDeleteExercise = { ex ->
+                            viewModel.deleteExercise(ex)
+                        },
+                        onDeleteWorkoutCategory = { plan, cat ->
+                            viewModel.deleteWorkoutFromPlan(plan, cat)
                         }
                     )
                 }
@@ -346,6 +353,12 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                         },
                         onCreateExercise = { newEx ->
                             viewModel.createCustomExercise(newEx)
+                        },
+                        onDeleteExercise = { ex ->
+                            viewModel.deleteExercise(ex)
+                        },
+                        onDeleteCategory = { cat ->
+                            viewModel.deleteCategory(cat)
                         }
                     )
                 }
@@ -480,7 +493,11 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                 }
 
                 is Screen.ExerciseDetail -> {
-                    val exercise = selectedExercise
+                    val targetId = currentScreen.exerciseId
+                    LaunchedEffect(targetId) {
+                        viewModel.selectExercise(targetId)
+                    }
+                    val exercise = allExercises.firstOrNull { it.id == targetId } ?: selectedExercise
                     if (exercise != null) {
                         val chartPoints = remember(exercise, selectedExerciseSets) {
                             val metric = when {
@@ -506,12 +523,21 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                             onDeleteMedia = { media ->
                                 viewModel.deleteMedia(media)
                             },
+                            onDeleteExercise = { ex ->
+                                viewModel.deleteExercise(ex)
+                                currentScreenRoute = previousDetailRoute
+                            },
                             onBack = {
                                 currentScreenRoute = previousDetailRoute
                             }
                         )
                     } else {
-                        currentScreenRoute = previousDetailRoute
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        }
                     }
                 }
             }

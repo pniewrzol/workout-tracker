@@ -103,6 +103,8 @@ fun HomeScreen(
     onSetActivePlan: (Long) -> Unit = {},
     onDeletePlan: (WorkoutPlan) -> Unit = {},
     onCreateCustomExercise: (Exercise) -> Unit = {},
+    onDeleteExercise: (Exercise) -> Unit = {},
+    onDeleteWorkoutCategory: (WorkoutPlan, String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     var showReportDialog by remember { mutableStateOf(false) }
@@ -439,6 +441,16 @@ fun HomeScreen(
         }
 
         // 2. Workouts based on the active plan
+        val getWorkoutEstimatedTime: (String, String) -> String = { name, defaultEst ->
+            val completed = completedSessions.filter { it.workoutName == name && it.durationSeconds > 600 }
+            if (completed.isNotEmpty()) {
+                val avg = completed.map { it.durationSeconds / 60 }.average().toInt()
+                "$defaultEst (Twój śr. czas: $avg min)"
+            } else {
+                defaultEst
+            }
+        }
+
         if (currentPlanId == 1L) {
             // Default 3-day FBW Plan (A, B, C)
             item {
@@ -447,7 +459,7 @@ fun HomeScreen(
                     subtitle = "Powerband Chin-ups, Dips, Wykroki, OHP, Ramiona, Brzuch, Plank boczny (czas)",
                     exerciseCount = 8,
                     setsTotal = 30,
-                    estimatedMin = "65 min",
+                    estimatedMin = getWorkoutEstimatedTime("Trening A", "95 - 110 min"),
                     badgeColor = AthleticOrange,
                     onStart = {
                         val exercises = allExercises.filter { it.section == "Trening A" }
@@ -462,7 +474,7 @@ fun HomeScreen(
                     subtitle = "Semi Sumo Martwy Ciąg, Skos Hammer, Wiosło, Bok barku, Ramiona, Brzuch, Schody (czas)",
                     exerciseCount = 9,
                     setsTotal = 31,
-                    estimatedMin = "75 min",
+                    estimatedMin = getWorkoutEstimatedTime("Trening B", "110 - 125 min"),
                     badgeColor = ElectricCyan,
                     onStart = {
                         val exercises = allExercises.filter { it.section == "Trening B" }
@@ -474,10 +486,10 @@ fun HomeScreen(
             item {
                 WorkoutPlanCard(
                     title = "Trening C",
-                    subtitle = "Spacer farmera (dystans), Pallof Press, Wyciskanie hantli, Chin-up hold (czas), Tył barku, Piłka, Kółko",
+                    subtitle = "Spacer farmera (ciężar + dystans), Pallof Press, Wyciskanie hantli, Chin-up hold (czas), Tył barku, Piłka, Kółko",
                     exerciseCount = 9,
                     setsTotal = 33,
-                    estimatedMin = "70 min",
+                    estimatedMin = getWorkoutEstimatedTime("Trening C", "100 - 115 min"),
                     badgeColor = GoldPr,
                     onStart = {
                         val exercises = allExercises.filter { it.section == "Trening C" }
@@ -488,7 +500,8 @@ fun HomeScreen(
         } else {
             // Custom Plan Workouts
             val customPlanExercises = allExercises.filter { it.planId == currentPlanId }
-            val customWorkouts = customPlanExercises.map { it.section }.distinct().filter { it != "Rozgrzewka" && it != "Mobilizacja" }
+            val rawWorkouts = activePlan?.workoutsRaw?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
+            val customWorkouts = if (rawWorkouts.isNotEmpty()) rawWorkouts else customPlanExercises.map { it.section }.distinct().filter { it != "Rozgrzewka" && it != "Mobilizacja" }
 
             if (customWorkouts.isEmpty()) {
                 item {
@@ -531,12 +544,18 @@ fun HomeScreen(
                 items(customWorkouts) { workoutName ->
                     val workoutExs = customPlanExercises.filter { it.section == workoutName }
                     val totalSets = workoutExs.sumOf { it.targetSets }
+                    val estMin = if (workoutExs.isEmpty()) {
+                        "0 min"
+                    } else {
+                        val cardioMin = workoutExs.count { it.isTimeBased() || it.bodyPart.contains("cardio", ignoreCase = true) } * 15
+                        "${(totalSets * 2.8 + cardioMin + 15).toInt()} min"
+                    }
                     WorkoutPlanCard(
                         title = workoutName,
-                        subtitle = if (workoutExs.isNotEmpty()) workoutExs.joinToString(", ") { it.name } else "Brak ćwiczeń",
+                        subtitle = if (workoutExs.isNotEmpty()) workoutExs.joinToString(", ") { it.name } else "Brak ćwiczeń w tym treningu (kliknij, aby rozpocząć lub dodać ćwiczenia)",
                         exerciseCount = workoutExs.size,
                         setsTotal = totalSets,
-                        estimatedMin = "${workoutExs.size * 8} min",
+                        estimatedMin = getWorkoutEstimatedTime(workoutName, estMin),
                         badgeColor = AthleticOrange,
                         onStart = {
                             onStartWorkout(workoutName, workoutExs)
@@ -654,6 +673,8 @@ fun HomeScreen(
             onCreateExercise = { ex ->
                 onCreateCustomExercise(ex)
             },
+            onDeleteExercise = onDeleteExercise,
+            onDeleteWorkoutCategory = onDeleteWorkoutCategory,
             onDismiss = { showPlanManagerDialog = false }
         )
     }

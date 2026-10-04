@@ -523,9 +523,9 @@ object InitialWorkoutData {
             equipment = "Dumbbell / Trap bar",
             primaryMuscles = "Forearms, Traps",
             secondaryMuscles = "Core, Glutes, Calves, Delts",
-            cues = "Wyprostowana sylwetka, łopatki w dół, krótkie kontrolowane kroki, mocny chwyt. Pokonaj wyznaczony dystans w metrach",
-            instructions = "1) Chwyć obciążenie po bokach ciała, wyprostuj sylwetkę.\n2) Idź krótkimi, kontrolowanymi krokami, ściągając łopatki w dół.\n3) Pokonaj wyznaczony dystans w każdej serii, utrzymując stałe napięcie brzucha.",
-            measurementType = "DISTANCE"
+            cues = "Wyprostowana sylwetka, łopatki w dół, krótkie kontrolowane kroki, mocny chwyt. Zapisuj ciężar (kg) oraz pokonany dystans (m)",
+            instructions = "1) Chwyć hantle lub trap bar po bokach ciała, wyprostuj sylwetkę.\n2) Idź krótkimi, kontrolowanymi krokami, ściągając łopatki w dół.\n3) Zapisz użyty ciężar (kg) oraz pokonany dystans w metrach dla każdej serii.",
+            measurementType = "WEIGHT_AND_DISTANCE"
         ),
         Exercise(
             section = "Trening C",

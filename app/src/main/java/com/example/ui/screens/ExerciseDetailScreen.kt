@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddAPhoto
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.MenuBook
@@ -101,6 +102,7 @@ fun ExerciseDetailScreen(
     onAddMedia: (uri: Uri, isVideo: Boolean, caption: String) -> Unit,
     onAddMultipleMedia: (uris: List<Uri>, isVideo: Boolean) -> Unit = { _, _ -> },
     onDeleteMedia: (ExerciseMedia) -> Unit,
+    onDeleteExercise: ((Exercise) -> Unit)? = null,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -111,6 +113,7 @@ fun ExerciseDetailScreen(
     var pendingMediaUri by remember { mutableStateOf<Uri?>(null) }
     var pendingIsVideo by remember { mutableStateOf(false) }
     var showAddCaptionDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var captionText by remember { mutableStateOf("") }
 
     // Media picker for Photos & Videos (Zero-permission Android Photo Picker)
@@ -148,6 +151,17 @@ fun ExerciseDetailScreen(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Wstecz"
                         )
+                    }
+                },
+                actions = {
+                    if (onDeleteExercise != null) {
+                        IconButton(onClick = { showDeleteConfirmDialog = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Usuń ćwiczenie",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -661,6 +675,38 @@ fun ExerciseDetailScreen(
                         captionText = ""
                     }
                 ) {
+                    Text("Anuluj")
+                }
+            }
+        )
+    }
+
+    if (showDeleteConfirmDialog && onDeleteExercise != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Usuń ćwiczenie", fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Text("Czy na pewno chcesz usunąć ćwiczenie \"${exercise.name}\"? Zostanie ono bezpowrotnie usunięte z bazy danych aplikacji.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        onDeleteExercise(exercise)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Usuń", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
                     Text("Anuluj")
                 }
             }

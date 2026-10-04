@@ -63,4 +63,13 @@ interface ExerciseDao {
 
     @Query("DELETE FROM exercises WHERE id = :id")
     suspend fun deleteExerciseById(id: Long)
+
+    @Query("DELETE FROM exercises WHERE section = :section")
+    suspend fun deleteExercisesBySection(section: String)
+
+    @Query("DELETE FROM exercises WHERE section = :section AND planId = :planId")
+    suspend fun deleteExercisesBySectionAndPlanId(section: String, planId: Long)
+
+    @Query("DELETE FROM exercises WHERE planId = :planId")
+    suspend fun deleteExercisesByPlanId(planId: Long)
 }

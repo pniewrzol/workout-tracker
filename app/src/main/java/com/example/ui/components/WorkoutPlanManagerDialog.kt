@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.FormatListBulleted
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
@@ -78,6 +80,8 @@ fun WorkoutPlanManagerDialog(
     onCreatePlan: (name: String, description: String, includeWarmup: Boolean, workouts: List<Pair<String, String>>) -> Unit,
     onDeletePlan: (WorkoutPlan) -> Unit,
     onCreateExercise: (Exercise) -> Unit,
+    onDeleteExercise: ((Exercise) -> Unit)? = null,
+    onDeleteWorkoutCategory: ((WorkoutPlan, String) -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     var showCreatePlanDialog by remember { mutableStateOf(false) }
@@ -85,6 +89,8 @@ fun WorkoutPlanManagerDialog(
     var showAddWorkoutDialog by remember { mutableStateOf(false) }
 
     var planToDelete by remember { mutableStateOf<WorkoutPlan?>(null) }
+    var exerciseToDeleteInPlan by remember { mutableStateOf<Exercise?>(null) }
+    var workoutCategoryToDelete by remember { mutableStateOf<Pair<WorkoutPlan, String>?>(null) }
     var selectedPlanForDetails by remember { mutableStateOf(activePlan ?: plans.firstOrNull()) }
 
     // Update selectedPlanForDetails when plans change
@@ -101,10 +107,11 @@ fun WorkoutPlanManagerDialog(
         planExercises.filter { it.section == "Rozgrzewka" || it.section == "Mobilizacja" }
     }
 
-    // Workouts (sections) in this plan
-    val planWorkouts = remember(planExercises) {
-        val distinct = planExercises.map { it.section }.distinct().filter { it != "Rozgrzewka" && it != "Mobilizacja" }
-        if (distinct.isEmpty()) listOf("Trening 1") else distinct
+    // Workouts (sections) in this plan - combines workouts defined in plan and those with exercises
+    val planWorkouts = remember(planExercises, currentSelectedPlan) {
+        val fromRaw = currentSelectedPlan?.workoutsRaw?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
+        val fromEx = planExercises.map { it.section }.distinct().filter { it != "Rozgrzewka" && it != "Mobilizacja" }
+        (fromRaw + fromEx).distinct().ifEmpty { listOf("Trening A") }
     }
 
     Dialog(
@@ -256,18 +263,16 @@ fun WorkoutPlanManagerDialog(
                                         }
                                     }
 
-                                    if (plan.id != 1L) {
-                                        IconButton(
-                                            onClick = { planToDelete = plan },
-                                            modifier = Modifier.size(32.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Delete,
-                                                contentDescription = "Usuń plan",
-                                                tint = MaterialTheme.colorScheme.error,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
+                                    IconButton(
+                                        onClick = { planToDelete = plan },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Usuń plan",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(18.dp)
+                                        )
                                     }
                                 }
 
@@ -387,11 +392,27 @@ fun WorkoutPlanManagerDialog(
                                                         maxLines = 1
                                                     )
                                                 }
-                                                Text(
-                                                    text = ex.targetReps,
-                                                    fontSize = 11.sp,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(
+                                                        text = ex.targetReps,
+                                                        fontSize = 11.sp,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                    if (onDeleteExercise != null) {
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        IconButton(
+                                                            onClick = { exerciseToDeleteInPlan = ex },
+                                                            modifier = Modifier.size(26.dp)
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Delete,
+                                                                contentDescription = "Usuń ćwiczenie",
+                                                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                                                                modifier = Modifier.size(16.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -419,11 +440,27 @@ fun WorkoutPlanManagerDialog(
                                             fontSize = 15.sp,
                                             color = AthleticOrange
                                         )
-                                        Text(
-                                            text = "${exercisesInWorkout.size} ćwiczeń",
-                                            fontSize = 12.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "${exercisesInWorkout.size} ćwiczeń",
+                                                fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            if (onDeleteWorkoutCategory != null) {
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                IconButton(
+                                                    onClick = { workoutCategoryToDelete = Pair(selPlan, workoutSection) },
+                                                    modifier = Modifier.size(28.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Delete,
+                                                        contentDescription = "Usuń trening / kategorię",
+                                                        tint = MaterialTheme.colorScheme.error,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
 
                                     if (exercisesInWorkout.isNotEmpty()) {
@@ -451,11 +488,27 @@ fun WorkoutPlanManagerDialog(
                                                         maxLines = 1
                                                     )
                                                 }
-                                                Text(
-                                                    text = "${ex.targetSets}x (${ex.targetReps})",
-                                                    fontSize = 11.sp,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(
+                                                        text = "${ex.targetSets}x (${ex.targetReps})",
+                                                        fontSize = 11.sp,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                    if (onDeleteExercise != null) {
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        IconButton(
+                                                            onClick = { exerciseToDeleteInPlan = ex },
+                                                            modifier = Modifier.size(26.dp)
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Delete,
+                                                                contentDescription = "Usuń ćwiczenie",
+                                                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                                                                modifier = Modifier.size(16.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -522,37 +575,26 @@ fun WorkoutPlanManagerDialog(
                     item {
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = SuccessGreen.copy(alpha = 0.12f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, SuccessGreen.copy(alpha = 0.35f)),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 12.dp, vertical = 10.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Rozgrzewka i Mobilizacja",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = SuccessGreen
-                                    )
-                                    Text(
-                                        text = "Dołącz standardowy pakiet rozgrzewki cardio i 10 ćwiczeń mobilizacyjnych",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Switch(
-                                    checked = includeWarmup,
-                                    onCheckedChange = { includeWarmup = it },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = SuccessGreen,
-                                        checkedTrackColor = SuccessGreen.copy(alpha = 0.4f)
-                                    )
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = AthleticOrange,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Plan zostanie utworzony jako czysty szablon bez automatycznych ćwiczeń. Wszystkie ćwiczenia dodasz według własnych założeń.",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -874,17 +916,18 @@ fun WorkoutPlanManagerDialog(
                     }
                     item {
                         Text("Typ rejestracji wyniku:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf(
+                        LazyRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(listOf(
                                 "WEIGHT_AND_REPS" to "Ciężar + Reps",
+                                "WEIGHT_AND_DISTANCE" to "Ciężar + Dystans (Spacer farmera)",
                                 "BODYWEIGHT_REPS" to "Masa ciała",
                                 "TIME" to "Czas (sek)",
                                 "DISTANCE" to "Dystans (m)"
-                            ).forEach { (typeVal, label) ->
+                            )) { (typeVal, label) ->
                                 FilterChip(
                                     selected = exType == typeVal,
                                     onClick = { exType = typeVal },
-                                    label = { Text(label, fontSize = 10.sp) }
+                                    label = { Text(label, fontSize = 11.sp) }
                                 )
                             }
                         }
@@ -941,7 +984,7 @@ fun WorkoutPlanManagerDialog(
         AlertDialog(
             onDismissRequest = { planToDelete = null },
             title = { Text("Usunąć plan?", fontWeight = FontWeight.Bold) },
-            text = { Text("Czy na pewno chcesz usunąć plan '${plan.name}'? Ta operacja jest nieodwracalna.") },
+            text = { Text("Czy na pewno chcesz usunąć plan '${plan.name}'? Ta operacja jest nieodwracalna. Jeśli to jedyny plan, zostanie utworzony nowy czysty szablon.") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -955,6 +998,62 @@ fun WorkoutPlanManagerDialog(
             },
             dismissButton = {
                 TextButton(onClick = { planToDelete = null }) {
+                    Text("Anuluj")
+                }
+            }
+        )
+    }
+
+    // Delete Workout Category from Plan Confirmation
+    workoutCategoryToDelete?.let { (plan, catName) ->
+        AlertDialog(
+            onDismissRequest = { workoutCategoryToDelete = null },
+            title = { Text("Usunąć trening / kategorię?", fontWeight = FontWeight.Bold) },
+            text = { Text("Czy na pewno chcesz usunąć '$catName' oraz powiązane z nim ćwiczenia z planu '${plan.name}'?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteWorkoutCategory?.invoke(plan, catName)
+                        workoutCategoryToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Usuń")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { workoutCategoryToDelete = null }) {
+                    Text("Anuluj")
+                }
+            }
+        )
+    }
+
+    // Delete Exercise from Plan Confirmation
+    exerciseToDeleteInPlan?.let { ex ->
+        AlertDialog(
+            onDismissRequest = { exerciseToDeleteInPlan = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Usuń ćwiczenie", fontWeight = FontWeight.Bold)
+                }
+            },
+            text = { Text("Czy na pewno chcesz usunąć ćwiczenie '${ex.name}' z aplikacji?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteExercise?.invoke(ex)
+                        exerciseToDeleteInPlan = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Usuń", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { exerciseToDeleteInPlan = null }) {
                     Text("Anuluj")
                 }
             }

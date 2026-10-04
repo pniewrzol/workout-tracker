@@ -384,6 +384,11 @@ fun HistorySessionCard(
                                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
                                     ) {
                                         val setText = when {
+                                            ex?.isWeightAndDistanceBased() == true || (s.distanceMeters != null && s.weightKg > 0f) -> {
+                                                val wStr = if (s.weightKg % 1f == 0f) s.weightKg.toInt().toString() else s.weightKg.toString()
+                                                val dist = s.distanceMeters?.toInt() ?: 0
+                                                "s${s.setNumber}: ${wStr}kg × ${dist}m"
+                                            }
                                             ex?.isDistanceBased() == true -> {
                                                 val dist = s.distanceMeters?.toInt() ?: 0
                                                 "s${s.setNumber}: ${dist}m"

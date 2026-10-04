@@ -107,11 +107,24 @@ class WorkoutRepository(
         val currentExercises = exerciseDao.getAllExercisesList()
         val currentByCode = currentExercises.associateBy { it.code }
 
-        // 4. For each default exercise: insert if missing, update details if present
+        val prefs = context.getSharedPreferences("app_settings_prefs", Context.MODE_PRIVATE)
+        val hasSeeded = prefs.getBoolean("has_initial_seeded_exercises", false)
+
+        // Auto-migrate any Farmer's Walk / Spacer farmera to WEIGHT_AND_DISTANCE
+        for (ex in currentExercises) {
+            val nm = ex.name.lowercase()
+            if ((nm.contains("farmer") || nm.contains("spacer") || nm.contains("carry") || ex.code == "C.1a") && ex.measurementType != "WEIGHT_AND_DISTANCE") {
+                exerciseDao.updateExercise(ex.copy(measurementType = "WEIGHT_AND_DISTANCE"))
+            }
+        }
+
+        // 4. For each default exercise: insert if missing (ONLY during initial setup), update details if present
         for (defEx in InitialWorkoutData.defaultExercises) {
             val existing = currentByCode[defEx.code]
             if (existing == null) {
-                exerciseDao.insertExercise(defEx)
+                if (!hasSeeded) {
+                    exerciseDao.insertExercise(defEx)
+                }
             } else {
                 exerciseDao.updateExercise(
                     existing.copy(
@@ -133,6 +146,9 @@ class WorkoutRepository(
                     )
                 )
             }
+        }
+        if (!hasSeeded) {
+            prefs.edit().putBoolean("has_initial_seeded_exercises", true).apply()
         }
     }
 
@@ -432,23 +448,7 @@ class WorkoutRepository(
         val id = workoutPlanDao.insertPlan(plan)
         workoutPlanDao.setActivePlan(id)
 
-        if (includeWarmupAndMobility) {
-            val allEx = exerciseDao.getAllExercisesList()
-            val warmups = allEx.filter {
-                (it.section == "Rozgrzewka" || it.section == "Mobilizacja") && (it.planId == 0L || it.planId == 1L)
-            }
-            for (w in warmups) {
-                exerciseDao.insertExercise(
-                    w.copy(
-                        id = 0,
-                        planId = id,
-                        isCustom = true
-                    )
-                )
-            }
-        }
-
-        // NOTE: No dummy exercises are created automatically. The user adds exercises manually as desired.
+        // As requested by user: No exercises are created automatically. The new plan starts completely empty.
 
         id
     }
@@ -459,10 +459,37 @@ class WorkoutRepository(
 
     suspend fun deletePlan(plan: WorkoutPlan) = withContext(Dispatchers.IO) {
         workoutPlanDao.deletePlan(plan)
+        exerciseDao.deleteExercisesByPlanId(plan.id)
         val remaining = workoutPlanDao.getAllPlansList()
         if (remaining.isNotEmpty()) {
             workoutPlanDao.setActivePlan(remaining.first().id)
+        } else {
+            val freshDefault = WorkoutPlan(
+                name = "Nowy Plan Treningowy",
+                description = "Czysty plan treningowy",
+                createdAt = System.currentTimeMillis(),
+                isActive = true,
+                workoutsRaw = "Trening A,Trening B,Trening C"
+            )
+            val newId = workoutPlanDao.insertPlan(freshDefault)
+            workoutPlanDao.setActivePlan(newId)
         }
+    }
+
+    suspend fun deleteWorkoutFromPlan(plan: WorkoutPlan, workoutSection: String) = withContext(Dispatchers.IO) {
+        val currentList = plan.workoutsRaw.split(",").map { it.trim() }.filter { it.isNotBlank() }
+        val updatedList = currentList.filterNot { it.equals(workoutSection, ignoreCase = true) }
+        val updatedPlan = plan.copy(workoutsRaw = updatedList.joinToString(","))
+        workoutPlanDao.updatePlan(updatedPlan)
+        exerciseDao.deleteExercisesBySectionAndPlanId(workoutSection, plan.id)
+    }
+
+    suspend fun updatePlan(plan: WorkoutPlan) = withContext(Dispatchers.IO) {
+        workoutPlanDao.updatePlan(plan)
+    }
+
+    suspend fun deleteCategory(section: String) = withContext(Dispatchers.IO) {
+        exerciseDao.deleteExercisesBySection(section)
     }
 
     suspend fun createCustomExercise(exercise: Exercise): Long = withContext(Dispatchers.IO) {
