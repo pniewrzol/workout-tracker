@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
@@ -48,6 +49,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModelProvider
@@ -137,6 +139,24 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
     val selectedExerciseMedia by viewModel.selectedExerciseMedia.collectAsStateWithLifecycle()
     val selectedExerciseSets by viewModel.selectedExerciseSets.collectAsStateWithLifecycle()
 
+    // Persistent scroll states hoisted across navigation so opening an exercise detail never resets the list to the top
+    val homeListState = rememberLazyListState()
+    val exerciseListState = rememberLazyListState()
+    val workoutActiveListState = rememberLazyListState()
+
+    var lastViewedExerciseIdInWorkout by rememberSaveable { mutableStateOf<Long?>(null) }
+    var lastViewedExerciseIdInList by rememberSaveable { mutableStateOf<Long?>(null) }
+    var lastScrolledSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
+
+    // Reset workout active scroll state only when a new workout session starts
+    LaunchedEffect(activeSession?.id) {
+        val sessId = activeSession?.id
+        if (sessId != null && sessId != lastScrolledSessionId) {
+            lastScrolledSessionId = sessId
+            workoutActiveListState.scrollToItem(0)
+        }
+    }
+
     val currentScreen: Screen = remember(currentScreenRoute) {
         when {
             currentScreenRoute == "exercises" -> Screen.Exercises
@@ -202,7 +222,10 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                                 androidx.compose.foundation.layout.Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                ) {
                                     Icon(
                                         imageVector = Icons.Default.PlayArrow,
                                         contentDescription = null,
@@ -214,7 +237,9 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                                         text = "W toku: ${activeSession?.workoutName}",
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
 
@@ -339,15 +364,19 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                         },
                         onDeleteWorkoutCategory = { plan, cat ->
                             viewModel.deleteWorkoutFromPlan(plan, cat)
-                        }
+                        },
+                        listState = homeListState
                     )
                 }
 
                 Screen.Exercises -> {
                     ExerciseListScreen(
                         exercises = allExercises,
+                        listState = exerciseListState,
+                        lastViewedExerciseId = lastViewedExerciseIdInList,
                         onExerciseClick = { exId ->
                             previousDetailRoute = "exercises"
+                            lastViewedExerciseIdInList = exId
                             viewModel.selectExercise(exId)
                             currentScreenRoute = "detail_$exId"
                         },
@@ -450,6 +479,7 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                             onStartTimer = { seconds -> viewModel.startRestTimer(seconds) },
                             onExerciseDetailsClick = { exId ->
                                 previousDetailRoute = "active_workout"
+                                lastViewedExerciseIdInWorkout = exId
                                 viewModel.selectExercise(exId)
                                 currentScreenRoute = "detail_$exId"
                             },
@@ -466,7 +496,9 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                             },
                             onNavigateToMeasurements = {
                                 currentScreenRoute = "measurements"
-                            }
+                            },
+                            listState = workoutActiveListState,
+                            lastViewedExerciseId = lastViewedExerciseIdInWorkout
                         )
                     } else {
                         // While the workout session is being created in database, show loading state rather than bouncing to Home

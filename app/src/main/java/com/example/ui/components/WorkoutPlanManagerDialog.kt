@@ -60,6 +60,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -248,7 +249,8 @@ fun WorkoutPlanManagerDialog(
                                             text = plan.name,
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold,
-                                            maxLines = 1
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
 
@@ -299,18 +301,24 @@ fun WorkoutPlanManagerDialog(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column {
+                                Column(modifier = Modifier.weight(1f, fill = false)) {
                                     Text(
                                         text = "Treningi w: ${selPlan.name}",
                                         style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
                                         text = "${planWorkouts.size} treningów • ${planExercises.size} ćwiczeń",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
+
+                                Spacer(modifier = Modifier.width(6.dp))
 
                                 Row {
                                     OutlinedButton(
@@ -438,8 +446,12 @@ fun WorkoutPlanManagerDialog(
                                             text = workoutSection,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 15.sp,
-                                            color = AthleticOrange
+                                            color = AthleticOrange,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
                                         )
+                                        Spacer(modifier = Modifier.width(8.dp))
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(
                                                 text = "${exercisesInWorkout.size} ćwiczeń",

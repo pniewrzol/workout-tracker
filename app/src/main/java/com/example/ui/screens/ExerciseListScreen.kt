@@ -47,6 +47,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +55,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.Exercise
@@ -69,15 +71,15 @@ fun ExerciseListScreen(
     onCreateExercise: ((Exercise) -> Unit)? = null,
     onDeleteExercise: ((Exercise) -> Unit)? = null,
     onDeleteCategory: ((String) -> Unit)? = null,
+    listState: androidx.compose.foundation.lazy.LazyListState = rememberLazyListState(),
+    lastViewedExerciseId: Long? = null,
     modifier: Modifier = Modifier
 ) {
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedSection by remember { mutableStateOf("Wszystkie") }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var selectedSection by rememberSaveable { mutableStateOf("Wszystkie") }
     var showCreateDialog by remember { mutableStateOf(false) }
     var exerciseToDelete by remember { mutableStateOf<Exercise?>(null) }
     var categoryToDelete by remember { mutableStateOf<String?>(null) }
-
-    val listState = rememberLazyListState()
 
     // Distinct sections dynamically plus standard ones
     val sections = remember(exercises) {
@@ -101,6 +103,15 @@ fun ExerciseListScreen(
                         ex.bodyPart.contains(searchQuery, ignoreCase = true)
             }
             matchesSection && matchesSearch
+        }
+    }
+
+    LaunchedEffect(lastViewedExerciseId, filteredExercises) {
+        if (lastViewedExerciseId != null && filteredExercises.isNotEmpty()) {
+            val index = filteredExercises.indexOfFirst { it.id == lastViewedExerciseId }
+            if (index >= 0) {
+                listState.scrollToItem(index)
+            }
         }
     }
 
@@ -586,36 +597,50 @@ fun ExerciseListItemCard(
                     color = sectionColor.copy(alpha = 0.15f),
                     modifier = Modifier.size(46.dp)
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(2.dp)) {
                         Text(
                             text = exercise.code,
-                            style = MaterialTheme.typography.titleSmall,
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontSize = if (exercise.code.length > 4) 10.sp else if (exercise.code.length > 2) 12.sp else 14.sp
+                            ),
                             fontWeight = FontWeight.Bold,
-                            color = sectionColor
+                            color = sectionColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = exercise.name,
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "${exercise.section} • ${exercise.equipment}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Text(
                             text = exercise.primaryMuscles,
                             style = MaterialTheme.typography.labelSmall,
                             color = sectionColor,
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
                         if (exercise.isDistanceBased() || exercise.isTimeBased()) {
                             Spacer(modifier = Modifier.width(6.dp))
@@ -629,7 +654,9 @@ fun ExerciseListItemCard(
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = if (exercise.isDistanceBased()) ElectricCyan else AthleticOrange,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }

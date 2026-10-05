@@ -1,3 +1,8 @@
+@file:OptIn(
+    androidx.compose.foundation.layout.ExperimentalLayoutApi::class,
+    androidx.compose.material3.ExperimentalMaterial3Api::class
+)
+
 package com.example.ui.screens
 
 import androidx.activity.compose.BackHandler
@@ -9,6 +14,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,8 +24,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -83,7 +94,7 @@ import com.example.ui.theme.ElectricCyan
 import com.example.ui.theme.SuccessGreen
 import kotlinx.coroutines.delay
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun WorkoutActiveScreen(
     session: WorkoutSession,
@@ -105,6 +116,8 @@ fun WorkoutActiveScreen(
     onNavigateToExercises: () -> Unit = {},
     onNavigateToHistory: () -> Unit = {},
     onNavigateToMeasurements: () -> Unit = {},
+    listState: LazyListState = rememberLazyListState(),
+    lastViewedExerciseId: Long? = null,
     modifier: Modifier = Modifier
 ) {
     var showFinishDialog by remember { mutableStateOf(false) }
@@ -141,6 +154,17 @@ fun WorkoutActiveScreen(
             map.getOrPut(setLog.exerciseId) { mutableListOf() }.add(setLog)
         }
         map
+    }
+
+    LaunchedEffect(lastViewedExerciseId, groupedSets.keys) {
+        if (lastViewedExerciseId != null && groupedSets.isNotEmpty()) {
+            val exerciseKeys = groupedSets.keys.toList()
+            val index = exerciseKeys.indexOf(lastViewedExerciseId)
+            if (index >= 0) {
+                // In the LazyColumn: item 0 is summary, item 1 is chips, exercises start at index 2
+                listState.scrollToItem(index + 2)
+            }
+        }
     }
 
     val isWarmupOrMobilitySession = remember(session.workoutName) {
@@ -181,18 +205,21 @@ fun WorkoutActiveScreen(
                     }
                 },
                 title = {
-                    Column {
+                    Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
                             text = session.workoutName,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = "Czas trwania: $timerString",
                             style = MaterialTheme.typography.labelSmall,
                             color = AthleticOrange,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 },
@@ -233,6 +260,7 @@ fun WorkoutActiveScreen(
         }
     ) { innerPadding ->
         LazyColumn(
+            state = listState,
             modifier = modifier
                 .fillMaxSize()
                 .padding(innerPadding),
@@ -256,21 +284,28 @@ fun WorkoutActiveScreen(
                         Text(
                             text = "Serie: $completedCount / $totalCount",
                             style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
                         if (totalVolume > 0) {
                             Text(
                                 text = "Objętość siłowa: ${totalVolume}kg",
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = ElectricCyan
+                                color = ElectricCyan,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         } else {
                             Text(
                                 text = "Ćwiczenia: ${groupedSets.size}",
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = ElectricCyan
+                                color = ElectricCyan,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -279,42 +314,50 @@ fun WorkoutActiveScreen(
 
             // Quick navigation chips to browse app without interrupting workout
             item {
-                Row(
+                LazyRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    AssistChip(
-                        onClick = onMinimize,
-                        label = { Text("Pulpit", fontSize = 11.sp) },
-                        leadingIcon = { Icon(Icons.Default.Home, null, Modifier.size(14.dp)) },
-                        colors = AssistChipDefaults.assistChipColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                    item {
+                        AssistChip(
+                            onClick = onMinimize,
+                            label = { Text("Pulpit", fontSize = 11.sp) },
+                            leadingIcon = { Icon(Icons.Default.Home, null, Modifier.size(14.dp)) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                            )
                         )
-                    )
-                    AssistChip(
-                        onClick = onNavigateToExercises,
-                        label = { Text("Ćwiczenia", fontSize = 11.sp) },
-                        leadingIcon = { Icon(Icons.Default.FitnessCenter, null, Modifier.size(14.dp)) },
-                        colors = AssistChipDefaults.assistChipColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                    }
+                    item {
+                        AssistChip(
+                            onClick = onNavigateToExercises,
+                            label = { Text("Ćwiczenia", fontSize = 11.sp) },
+                            leadingIcon = { Icon(Icons.Default.FitnessCenter, null, Modifier.size(14.dp)) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                            )
                         )
-                    )
-                    AssistChip(
-                        onClick = onNavigateToHistory,
-                        label = { Text("Historia", fontSize = 11.sp) },
-                        leadingIcon = { Icon(Icons.Default.History, null, Modifier.size(14.dp)) },
-                        colors = AssistChipDefaults.assistChipColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                    }
+                    item {
+                        AssistChip(
+                            onClick = onNavigateToHistory,
+                            label = { Text("Historia", fontSize = 11.sp) },
+                            leadingIcon = { Icon(Icons.Default.History, null, Modifier.size(14.dp)) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                            )
                         )
-                    )
-                    AssistChip(
-                        onClick = onNavigateToMeasurements,
-                        label = { Text("Pomiary", fontSize = 11.sp) },
-                        leadingIcon = { Icon(Icons.Default.Straighten, null, Modifier.size(14.dp)) },
-                        colors = AssistChipDefaults.assistChipColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                    }
+                    item {
+                        AssistChip(
+                            onClick = onNavigateToMeasurements,
+                            label = { Text("Pomiary", fontSize = 11.sp) },
+                            leadingIcon = { Icon(Icons.Default.Straighten, null, Modifier.size(14.dp)) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                            )
                         )
-                    )
+                    }
                 }
             }
 
@@ -480,6 +523,7 @@ fun WorkoutActiveScreen(
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun ExerciseWorkoutCard(
     exercise: Exercise,
@@ -508,7 +552,10 @@ fun ExerciseWorkoutCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Surface(
                             shape = RoundedCornerShape(6.dp),
                             color = AthleticOrange.copy(alpha = 0.2f)
@@ -525,14 +572,19 @@ fun ExerciseWorkoutCard(
                         Text(
                             text = exercise.name,
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
                     }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "${exercise.equipment} • ${exercise.primaryMuscles}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
 
                     // Previous workout results banner
@@ -557,7 +609,10 @@ fun ExerciseWorkoutCard(
                                     text = previousSummary,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 11.sp
+                                    fontSize = 11.sp,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
                                 )
                             }
                         }
@@ -575,11 +630,12 @@ fun ExerciseWorkoutCard(
             }
 
             // Specs badges (Target reps / distance / time, Rest, RIR, Tempo)
-            Row(
+            FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 val specLabel = when (measurementType) {
                     ExerciseType.DISTANCE, ExerciseType.WEIGHT_AND_DISTANCE -> "Dystans"
@@ -604,14 +660,14 @@ fun ExerciseWorkoutCard(
                         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                         RoundedCornerShape(8.dp)
                     )
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = "SERIA",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.width(44.dp),
+                    modifier = Modifier.width(36.dp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
@@ -635,6 +691,7 @@ fun ExerciseWorkoutCard(
                             textAlign = TextAlign.Center,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "DYSTANS",
                             style = MaterialTheme.typography.labelSmall,
@@ -673,6 +730,7 @@ fun ExerciseWorkoutCard(
                             textAlign = TextAlign.Center,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "POWT.",
                             style = MaterialTheme.typography.labelSmall,
@@ -684,11 +742,14 @@ fun ExerciseWorkoutCard(
                     }
                 }
 
+                // Delete button alignment spacer in table header
+                Spacer(modifier = Modifier.width(28.dp))
+
                 Text(
                     text = "STATUS",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.width(46.dp),
+                    modifier = Modifier.width(38.dp),
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -817,7 +878,7 @@ fun SetNumberInputBox(
                 textStyle = MaterialTheme.typography.bodyLarge.copy(
                     textAlign = TextAlign.Center,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
+                    fontSize = if (value.length >= 5) 12.sp else if (value.length >= 4) 13.sp else 14.sp,
                     color = if (isCompleted) SuccessGreen else MaterialTheme.colorScheme.onSurface
                 ),
                 cursorBrush = SolidColor(AthleticOrange),
@@ -836,7 +897,7 @@ fun SetNumberInputBox(
                                 style = MaterialTheme.typography.bodyLarge.copy(
                                     textAlign = TextAlign.Center,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
+                                    fontSize = 14.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
                                 )
                             )
@@ -966,7 +1027,7 @@ fun SetLogDistanceRow(
                 )
             }
         } else {
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(28.dp))
         }
 
         // Complete Checkbox Button
@@ -1066,7 +1127,7 @@ fun SetLogWeightDistanceRow(
                 placeholder = "0",
                 suffix = "kg",
                 keyboardType = KeyboardType.Decimal,
-                modifier = Modifier.width(62.dp),
+                modifier = Modifier.widthIn(min = 40.dp, max = 54.dp),
                 isCompleted = isDone
             )
 
@@ -1117,7 +1178,7 @@ fun SetLogWeightDistanceRow(
                 placeholder = "0",
                 suffix = "m",
                 keyboardType = KeyboardType.Decimal,
-                modifier = Modifier.width(62.dp),
+                modifier = Modifier.widthIn(min = 40.dp, max = 54.dp),
                 isCompleted = isDone
             )
 
@@ -1298,7 +1359,7 @@ fun SetLogTimeRow(
                 )
             }
         } else {
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(28.dp))
         }
 
         // Complete Checkbox Button
@@ -1500,7 +1561,7 @@ fun SetLogWeightRepsRow(
                 Text("-", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.width(2.dp))
 
             SetNumberInputBox(
                 value = weightText,
@@ -1512,11 +1573,11 @@ fun SetLogWeightRepsRow(
                 },
                 placeholder = "0",
                 keyboardType = KeyboardType.Decimal,
-                modifier = Modifier.width(62.dp),
+                modifier = Modifier.widthIn(min = 40.dp, max = 54.dp),
                 isCompleted = isDone
             )
 
-            Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.width(2.dp))
 
             IconButton(
                 onClick = {
@@ -1547,7 +1608,7 @@ fun SetLogWeightRepsRow(
                 Text("-", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.width(2.dp))
 
             SetNumberInputBox(
                 value = repsText,
@@ -1559,11 +1620,11 @@ fun SetLogWeightRepsRow(
                 },
                 placeholder = "0",
                 keyboardType = KeyboardType.Number,
-                modifier = Modifier.width(52.dp),
+                modifier = Modifier.widthIn(min = 38.dp, max = 48.dp),
                 isCompleted = isDone
             )
 
-            Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.width(2.dp))
 
             IconButton(
                 onClick = {
@@ -1591,7 +1652,7 @@ fun SetLogWeightRepsRow(
                 )
             }
         } else {
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(28.dp))
         }
 
         // Complete Checkbox Button
@@ -1636,7 +1697,9 @@ fun SpecBadge(label: String, value: String) {
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 11.sp
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

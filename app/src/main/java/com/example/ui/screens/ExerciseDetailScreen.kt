@@ -68,6 +68,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
@@ -230,17 +231,17 @@ fun ExerciseDetailScreen(
                         // Grid Specs
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            SpecItemBox(title = "Serie", value = "${exercise.targetSets}")
+                            SpecItemBox(title = "Serie", value = "${exercise.targetSets}", modifier = Modifier.weight(1f))
                             val repsOrMeasureTitle = when {
                                 exercise.isDistanceBased() -> "Dystans"
                                 exercise.isTimeBased() -> "Czas"
                                 else -> "Powtórzenia"
                             }
-                            SpecItemBox(title = repsOrMeasureTitle, value = exercise.targetReps)
-                            SpecItemBox(title = "Przerwa", value = exercise.restDisplay)
-                            SpecItemBox(title = "RIR", value = exercise.rir)
+                            SpecItemBox(title = repsOrMeasureTitle, value = exercise.targetReps, modifier = Modifier.weight(1f))
+                            SpecItemBox(title = "Przerwa", value = exercise.restDisplay, modifier = Modifier.weight(1f))
+                            SpecItemBox(title = "RIR", value = exercise.rir, modifier = Modifier.weight(1f))
                         }
 
                         if (exercise.tempo != "-") {
@@ -765,19 +766,26 @@ fun MediaThumbnailCard(
 }
 
 @Composable
-fun SpecItemBox(title: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+fun SpecItemBox(title: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+    ) {
         Text(
             text = title,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 11.sp
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
-            fontSize = 13.sp
+            fontSize = 13.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
