@@ -95,7 +95,7 @@ class ExampleRobolectricTest {
 
     val farmersWalk = exercises.first { it.code == "C.1a" }
     assertTrue(farmersWalk.isDistanceBased())
-    assertEquals(com.example.data.model.ExerciseType.DISTANCE, farmersWalk.getEffectiveMeasurementType())
+    assertEquals(com.example.data.model.ExerciseType.WEIGHT_AND_DISTANCE, farmersWalk.getEffectiveMeasurementType())
 
     val chinUpHold = exercises.first { it.code == "C.3" }
     assertTrue(chinUpHold.isTimeBased())

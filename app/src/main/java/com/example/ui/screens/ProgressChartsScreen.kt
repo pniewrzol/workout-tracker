@@ -174,7 +174,7 @@ fun ProgressChartsScreen(
                 Tab(
                     selected = selectedMainTab == 1,
                     onClick = { selectedMainTab = 1 },
-                    text = { Text("Mapa Mięśni", fontWeight = FontWeight.SemiBold) },
+                    text = { Text("Model Mięśni", fontWeight = FontWeight.SemiBold) },
                     icon = { Icon(Icons.Default.AccessibilityNew, contentDescription = null) }
                 )
             }

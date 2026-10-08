@@ -1,7 +1,11 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +27,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FitnessCenter
@@ -33,6 +39,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -44,6 +52,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -70,6 +79,7 @@ fun ExerciseListScreen(
     onExerciseClick: (Long) -> Unit,
     onCreateExercise: ((Exercise) -> Unit)? = null,
     onDeleteExercise: ((Exercise) -> Unit)? = null,
+    onDeleteExercises: ((List<Exercise>) -> Unit)? = null,
     onDeleteCategory: ((String) -> Unit)? = null,
     listState: androidx.compose.foundation.lazy.LazyListState = rememberLazyListState(),
     lastViewedExerciseId: Long? = null,
@@ -80,6 +90,14 @@ fun ExerciseListScreen(
     var showCreateDialog by remember { mutableStateOf(false) }
     var exerciseToDelete by remember { mutableStateOf<Exercise?>(null) }
     var categoryToDelete by remember { mutableStateOf<String?>(null) }
+    var isSelectionMode by rememberSaveable { mutableStateOf(false) }
+    var selectedExerciseIds by rememberSaveable { mutableStateOf(setOf<Long>()) }
+    var showBulkDeleteDialog by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = isSelectionMode) {
+        isSelectionMode = false
+        selectedExerciseIds = emptySet()
+    }
 
     // Distinct sections dynamically plus standard ones
     val sections = remember(exercises) {
@@ -173,56 +191,176 @@ fun ExerciseListScreen(
                 }
             }
 
-            // Counter & info & category actions
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Ćwiczenia: ${filteredExercises.size}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (selectedSection != "Wszystkie" && onDeleteCategory != null) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
-                            modifier = Modifier.clickable { categoryToDelete = selectedSection }
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+            // Counter & info & category actions OR Selection Bar
+            if (isSelectionMode) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                        .testTag("selection_mode_bar"),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)
+                    ),
+                    border = BorderStroke(1.dp, AthleticOrange.copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Zaznaczono: ${selectedExerciseIds.size}",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = AthleticOrange
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            TextButton(
+                                onClick = {
+                                    val currentFilteredIds = filteredExercises.map { it.id }.toSet()
+                                    if (selectedExerciseIds.containsAll(currentFilteredIds)) {
+                                        selectedExerciseIds = selectedExerciseIds - currentFilteredIds
+                                    } else {
+                                        selectedExerciseIds = selectedExerciseIds + currentFilteredIds
+                                    }
+                                },
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                val allSelected = filteredExercises.isNotEmpty() &&
+                                        selectedExerciseIds.containsAll(filteredExercises.map { it.id }.toSet())
+                                Text(
+                                    text = if (allSelected) "Odznacz" else "Wszystkie",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Button(
+                                onClick = { showBulkDeleteDialog = true },
+                                enabled = selectedExerciseIds.isNotEmpty(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    disabledContainerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.25f)
+                                ),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.testTag("btn_bulk_delete")
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Delete,
-                                    contentDescription = "Usuń kategorię",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(13.dp)
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = Color.White
                                 )
-                                Spacer(modifier = Modifier.width(3.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "Usuń kategorię",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.error,
-                                    fontWeight = FontWeight.Bold
+                                    text = "Usuń (${selectedExerciseIds.size})",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(2.dp))
+                            IconButton(
+                                onClick = {
+                                    isSelectionMode = false
+                                    selectedExerciseIds = emptySet()
+                                },
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Wyjdź z trybu zaznaczania",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
                     }
                 }
-                if (onCreateExercise != null) {
-                    Text(
-                        text = "+ Dodaj ćwiczenie",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = AthleticOrange,
-                        modifier = Modifier.clickable { showCreateDialog = true }
-                    )
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Ćwiczenia: ${filteredExercises.size}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier
+                                .clickable { isSelectionMode = true }
+                                .testTag("btn_enter_selection_mode")
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Checklist,
+                                    contentDescription = "Zaznacz ćwiczenia",
+                                    tint = AthleticOrange,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Zaznacz",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                        if (selectedSection != "Wszystkie" && onDeleteCategory != null) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
+                                modifier = Modifier.clickable { categoryToDelete = selectedSection }
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Usuń kategorię",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "Usuń kategorię",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (onCreateExercise != null) {
+                        Text(
+                            text = "+ Dodaj ćwiczenie",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = AthleticOrange,
+                            modifier = Modifier.clickable { showCreateDialog = true }
+                        )
+                    }
                 }
             }
 
@@ -234,19 +372,42 @@ fun ExerciseListScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(filteredExercises, key = { it.id }) { exercise ->
+                    val isSelected = selectedExerciseIds.contains(exercise.id)
                     ExerciseListItemCard(
                         exercise = exercise,
-                        onClick = { onExerciseClick(exercise.id) },
-                        onDeleteClick = if (onDeleteExercise != null) {
-                            { exerciseToDelete = exercise }
-                        } else null
+                        isSelectionMode = isSelectionMode,
+                        isSelected = isSelected,
+                        onClick = {
+                            if (isSelectionMode) {
+                                selectedExerciseIds = if (isSelected) {
+                                    selectedExerciseIds - exercise.id
+                                } else {
+                                    selectedExerciseIds + exercise.id
+                                }
+                            } else {
+                                onExerciseClick(exercise.id)
+                            }
+                        },
+                        onToggleSelect = {
+                            selectedExerciseIds = if (isSelected) {
+                                selectedExerciseIds - exercise.id
+                            } else {
+                                selectedExerciseIds + exercise.id
+                            }
+                        },
+                        onLongClick = {
+                            if (!isSelectionMode) {
+                                isSelectionMode = true
+                                selectedExerciseIds = setOf(exercise.id)
+                            }
+                        }
                     )
                 }
             }
         }
 
         // Floating Action Button to create exercise directly
-        if (onCreateExercise != null) {
+        if (onCreateExercise != null && !isSelectionMode) {
             ExtendedFloatingActionButton(
                 onClick = { showCreateDialog = true },
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
@@ -522,6 +683,48 @@ fun ExerciseListScreen(
         )
     }
 
+    // Confirmation dialog: Bulk Delete Exercises
+    if (showBulkDeleteDialog && selectedExerciseIds.isNotEmpty()) {
+        val count = selectedExerciseIds.size
+        AlertDialog(
+            onDismissRequest = { showBulkDeleteDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Usuń zaznaczone ćwiczenia", fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Text("Czy na pewno chcesz usunąć $count zaznaczonych ćwiczeń? Spowoduje to trwałe usunięcie ich z aplikacji.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val toDelete = exercises.filter { it.id in selectedExerciseIds }
+                        if (onDeleteExercises != null) {
+                            onDeleteExercises(toDelete)
+                        } else if (onDeleteExercise != null) {
+                            toDelete.forEach { onDeleteExercise(it) }
+                        }
+                        selectedExerciseIds = emptySet()
+                        isSelectionMode = false
+                        showBulkDeleteDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.testTag("btn_confirm_bulk_delete")
+                ) {
+                    Text("Usuń ($count)", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBulkDeleteDialog = false }) {
+                    Text("Anuluj")
+                }
+            }
+        )
+    }
+
     // Confirmation dialog: Delete Category
     categoryToDelete?.let { catName ->
         val count = exercises.count { it.section.equals(catName, ignoreCase = true) }
@@ -558,10 +761,15 @@ fun ExerciseListScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ExerciseListItemCard(
     exercise: Exercise,
     onClick: () -> Unit,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
+    onToggleSelect: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
     onDeleteClick: (() -> Unit)? = null
 ) {
     val sectionColor = when (exercise.section) {
@@ -575,11 +783,29 @@ fun ExerciseListItemCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
+            .combinedClickable(
+                onClick = {
+                    if (isSelectionMode) {
+                        onToggleSelect?.invoke()
+                    } else {
+                        onClick()
+                    }
+                },
+                onLongClick = {
+                    if (onLongClick != null) {
+                        onLongClick()
+                    } else if (!isSelectionMode) {
+                        onToggleSelect?.invoke()
+                    }
+                }
+            )
             .testTag("exercise_item_${exercise.id}"),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        border = if (isSelected) BorderStroke(1.5.dp, AthleticOrange) else null,
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) AthleticOrange.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 3.dp else 1.dp)
     ) {
         Row(
             modifier = Modifier
@@ -588,6 +814,15 @@ fun ExerciseListItemCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
+            if (isSelectionMode) {
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = { onToggleSelect?.invoke() },
+                    colors = CheckboxDefaults.colors(checkedColor = AthleticOrange),
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+            }
+
             Row(
                 modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically
@@ -664,20 +899,7 @@ fun ExerciseListItemCard(
                 }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (onDeleteClick != null) {
-                    IconButton(
-                        onClick = onDeleteClick,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Usuń ćwiczenie",
-                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f),
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
+            if (!isSelectionMode) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
                     contentDescription = null,

@@ -216,6 +216,12 @@ class WorkoutViewModel(
         }
     }
 
+    fun deleteExercises(exercises: List<Exercise>) {
+        viewModelScope.launch {
+            repository.deleteExercises(exercises)
+        }
+    }
+
     fun deleteExerciseById(id: Long) {
         viewModelScope.launch {
             repository.deleteExerciseById(id)

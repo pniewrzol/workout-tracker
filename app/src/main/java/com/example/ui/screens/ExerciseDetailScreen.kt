@@ -5,7 +5,9 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -471,12 +474,11 @@ fun ExerciseDetailScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Visual Anatomical Muscular Silhouette for this exercise
+                        // Modern Muscle Impact & Target Breakdown
                         val textToMatch = "${exercise.name} ${exercise.bodyPart} ${exercise.primaryMuscles} ${exercise.secondaryMuscles}".lowercase()
-                        val activeMuscles = remember(exercise) {
-                            val map = mutableMapOf<MuscleGroup, MuscleActivity>()
-                            MuscleGroup.entries.forEach { m ->
-                                val hit = when (m) {
+                        val targetedMuscles = remember(exercise) {
+                            MuscleGroup.entries.filter { m ->
+                                when (m) {
                                     MuscleGroup.CHEST -> textToMatch.contains("klatka") || textToMatch.contains("piersiow") || textToMatch.contains("chest") || textToMatch.contains("wyciskanie")
                                     MuscleGroup.SHOULDERS -> textToMatch.contains("bark") || textToMatch.contains("naramienn") || textToMatch.contains("żołnierskie")
                                     MuscleGroup.BICEPS -> textToMatch.contains("biceps") || textToMatch.contains("ramienn")
@@ -489,52 +491,145 @@ fun ExerciseDetailScreen(
                                     MuscleGroup.CALVES -> textToMatch.contains("łydk") || textToMatch.contains("brzuchat")
                                     MuscleGroup.FOREARMS -> textToMatch.contains("przedramion")
                                 }
-                                map[m] = MuscleActivity(m, setsCount = if (hit) 12 else 0, totalTonnage = 0f, exerciseNames = listOf(exercise.name))
                             }
-                            map
                         }
 
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(160.dp)
-                                .background(Color(0xFF0A0F1D), RoundedCornerShape(12.dp)),
-                            contentAlignment = Alignment.Center
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B))
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(8.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("Widok z przodu", fontSize = 10.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.Bold)
-                                    Box(modifier = Modifier.size(100.dp, 130.dp)) {
-                                        AnatomicalBodyCanvas(
-                                            isFront = true,
-                                            activities = activeMuscles,
-                                            selectedMuscle = null,
-                                            onSelectMuscle = {}
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Zaangażowane partie mięśniowe:",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF94A3B8)
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = AthleticOrange.copy(alpha = 0.15f)
+                                    ) {
+                                        Text(
+                                            text = "Regeneracja: ~48h",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = AthleticOrange,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                         )
                                     }
                                 }
-                                Box(
-                                    modifier = Modifier
-                                        .width(1.dp)
-                                        .height(110.dp)
-                                        .background(Color(0xFF1E293B))
-                                )
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("Widok z tyłu", fontSize = 10.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.Bold)
-                                    Box(modifier = Modifier.size(100.dp, 130.dp)) {
-                                        AnatomicalBodyCanvas(
-                                            isFront = false,
-                                            activities = activeMuscles,
-                                            selectedMuscle = null,
-                                            onSelectMuscle = {}
-                                        )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                if (targetedMuscles.isNotEmpty()) {
+                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        items(targetedMuscles) { m ->
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = ElectricCyan.copy(alpha = 0.16f),
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, ElectricCyan.copy(alpha = 0.5f))
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(8.dp)
+                                                            .background(ElectricCyan, CircleShape)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text(
+                                                        text = m.displayName,
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color.White
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    // Wizualizacja sylwetki dla tego ćwiczenia
+                                    val activeMusclesMap = remember(targetedMuscles) {
+                                        MuscleGroup.entries.associateWith { m ->
+                                            val isTargeted = targetedMuscles.contains(m)
+                                            com.example.ui.components.MuscleActivity(
+                                                muscle = m,
+                                                setsCount = if (isTargeted) 12 else 0,
+                                                totalTonnage = 0f,
+                                                exerciseNames = listOf(exercise.name)
+                                            )
+                                        }
+                                    }
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(200.dp)
+                                            .background(Color(0xFF070B14), RoundedCornerShape(12.dp))
+                                            .border(BorderStroke(1.dp, Color(0xFF1E293B)), RoundedCornerShape(12.dp))
+                                            .padding(6.dp),
+                                        horizontalArrangement = Arrangement.SpaceEvenly,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Text("PRZÓD", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = ElectricCyan)
+                                            Box(
+                                                modifier = Modifier.fillMaxSize().padding(top = 2.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                com.example.ui.components.ModernBodySilhouetteCanvas(
+                                                    isFront = true,
+                                                    activities = activeMusclesMap,
+                                                    selectedMuscle = null,
+                                                    onSelectMuscle = {}
+                                                )
+                                            }
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .width(1.dp)
+                                                .height(150.dp)
+                                                .background(Color(0xFF1E293B))
+                                        )
+                                        Column(
+                                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Text("TYŁ", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AthleticOrange)
+                                            Box(
+                                                modifier = Modifier.fillMaxSize().padding(top = 2.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                com.example.ui.components.ModernBodySilhouetteCanvas(
+                                                    isFront = false,
+                                                    activities = activeMusclesMap,
+                                                    selectedMuscle = null,
+                                                    onSelectMuscle = {}
+                                                )
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Text(
+                                        text = "${exercise.primaryMuscles} • ${exercise.bodyPart}",
+                                        fontSize = 12.sp,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Medium
+                                    )
                                 }
                             }
                         }
@@ -609,6 +704,68 @@ fun ExerciseDetailScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             lineHeight = 22.sp
                         )
+                    }
+                }
+            }
+
+            if (onDeleteExercise != null) {
+                item {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.15f)
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.error.copy(alpha = 0.35f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Zarządzanie ćwiczeniem",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Możesz trwale usunąć to ćwiczenie z bazy danych aplikacji.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedButton(
+                                onClick = { showDeleteConfirmDialog = true },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                ),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.error
+                                ),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.testTag("btn_delete_exercise_card")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Usuń to ćwiczenie",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
             }

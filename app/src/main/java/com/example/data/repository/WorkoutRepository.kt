@@ -500,6 +500,10 @@ class WorkoutRepository(
         exerciseDao.deleteExercise(exercise)
     }
 
+    suspend fun deleteExercises(exercises: List<Exercise>) = withContext(Dispatchers.IO) {
+        exerciseDao.deleteExercises(exercises)
+    }
+
     suspend fun deleteExerciseById(id: Long) = withContext(Dispatchers.IO) {
         exerciseDao.deleteExerciseById(id)
     }

@@ -386,6 +386,9 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                         onDeleteExercise = { ex ->
                             viewModel.deleteExercise(ex)
                         },
+                        onDeleteExercises = { list ->
+                            viewModel.deleteExercises(list)
+                        },
                         onDeleteCategory = { cat ->
                             viewModel.deleteCategory(cat)
                         }
