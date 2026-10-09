@@ -18,6 +18,8 @@ import com.example.data.security.SecurePasswordStorage
 import com.example.ui.components.ChartPoint
 import com.example.ui.theme.AppThemeMode
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -156,22 +158,73 @@ class WorkoutViewModel(
     private val _restTimerSeconds = MutableStateFlow(0)
     val restTimerSeconds: StateFlow<Int> = _restTimerSeconds.asStateFlow()
 
+    private val _restTimerRemainingSeconds = MutableStateFlow(0)
+    val restTimerRemainingSeconds: StateFlow<Int> = _restTimerRemainingSeconds.asStateFlow()
+
     private val _isRestTimerActive = MutableStateFlow(false)
     val isRestTimerActive: StateFlow<Boolean> = _isRestTimerActive.asStateFlow()
+
+    private val _isRestTimerPaused = MutableStateFlow(false)
+    val isRestTimerPaused: StateFlow<Boolean> = _isRestTimerPaused.asStateFlow()
+
+    private val _restTimerLabel = MutableStateFlow("Czas na przerwę")
+    val restTimerLabel: StateFlow<String> = _restTimerLabel.asStateFlow()
+
+    private var restTimerJob: Job? = null
 
     fun selectExercise(id: Long) {
         _selectedExerciseId.value = id
     }
 
-    fun startRestTimer(seconds: Int) {
+    fun startRestTimer(seconds: Int, label: String = "Czas na przerwę") {
         if (seconds > 0) {
+            restTimerJob?.cancel()
             _restTimerSeconds.value = seconds
+            _restTimerRemainingSeconds.value = seconds
+            _restTimerLabel.value = label
+            _isRestTimerPaused.value = false
             _isRestTimerActive.value = true
+
+            restTimerJob = viewModelScope.launch {
+                while (_isRestTimerActive.value && _restTimerRemainingSeconds.value > 0) {
+                    delay(1000L)
+                    if (!_isRestTimerPaused.value && _isRestTimerActive.value) {
+                        val current = _restTimerRemainingSeconds.value - 1
+                        _restTimerRemainingSeconds.value = current
+                        if (current <= 0) {
+                            _isRestTimerActive.value = false
+                            break
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fun pauseResumeRestTimer() {
+        if (_isRestTimerActive.value) {
+            _isRestTimerPaused.value = !_isRestTimerPaused.value
+        }
+    }
+
+    fun addRestSeconds(seconds: Int = 30) {
+        if (_isRestTimerActive.value) {
+            _restTimerRemainingSeconds.value = _restTimerRemainingSeconds.value + seconds
+            _restTimerSeconds.value = maxOf(_restTimerSeconds.value, _restTimerRemainingSeconds.value)
+        }
+    }
+
+    fun reduceRestSeconds(seconds: Int = 15) {
+        if (_isRestTimerActive.value) {
+            _restTimerRemainingSeconds.value = maxOf(1, _restTimerRemainingSeconds.value - seconds)
         }
     }
 
     fun dismissRestTimer() {
+        restTimerJob?.cancel()
+        restTimerJob = null
         _isRestTimerActive.value = false
+        _restTimerRemainingSeconds.value = 0
     }
 
     fun startWorkout(workoutName: String, exercises: List<Exercise>, onStarted: (() -> Unit)? = null) {
@@ -280,7 +333,12 @@ class WorkoutViewModel(
         }
     }
 
-    fun toggleSetCompleted(setLog: WorkoutSetLog, exerciseRestSeconds: Int) {
+    fun toggleSetCompleted(
+        setLog: WorkoutSetLog,
+        exerciseRestSeconds: Int,
+        nextSupersetExerciseName: String? = null,
+        isFirstInSuperset: Boolean = false
+    ) {
         val newCompleted = !setLog.isCompleted
         val updated = setLog.copy(
             isCompleted = newCompleted,
@@ -288,8 +346,23 @@ class WorkoutViewModel(
         )
         viewModelScope.launch {
             repository.updateSetLog(updated)
-            if (newCompleted && exerciseRestSeconds > 0) {
-                startRestTimer(exerciseRestSeconds)
+            if (newCompleted) {
+                if (isFirstInSuperset && !nextSupersetExerciseName.isNullOrBlank()) {
+                    startRestTimer(
+                        seconds = 15,
+                        label = "Przejdź do: $nextSupersetExerciseName"
+                    )
+                } else if (exerciseRestSeconds > 0) {
+                    val lbl = if (!nextSupersetExerciseName.isNullOrBlank()) {
+                        "Przerwa po serii łączonej $nextSupersetExerciseName"
+                    } else {
+                        "Czas na przerwę"
+                    }
+                    startRestTimer(
+                        seconds = exerciseRestSeconds,
+                        label = lbl
+                    )
+                }
             }
         }
     }

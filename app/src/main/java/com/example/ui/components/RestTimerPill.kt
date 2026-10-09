@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Timer
@@ -57,22 +58,26 @@ import kotlinx.coroutines.delay
 @Composable
 fun RestTimerPill(
     totalSeconds: Int,
+    remainingSeconds: Int,
     isVisible: Boolean,
+    isPaused: Boolean = false,
+    label: String = "Czas na przerwę",
+    onPauseResume: () -> Unit = {},
+    onAddSeconds: (Int) -> Unit = {},
+    onReduceSeconds: (Int) -> Unit = {},
     onFinishedOrDismissed: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var remainingSeconds by remember(totalSeconds, isVisible) { mutableIntStateOf(totalSeconds) }
-    var isRunning by remember(isVisible) { mutableStateOf(isVisible) }
+    val isExerciseTimer = remember(label) {
+        label.contains("ćwiczen", ignoreCase = true) || label.contains("seri", ignoreCase = true)
+    }
+    val timerAccent = if (isExerciseTimer) ElectricCyan else AthleticOrange
 
-    LaunchedEffect(isVisible, remainingSeconds, isRunning) {
-        if (isVisible && isRunning && remainingSeconds > 0) {
-            delay(1000L)
-            remainingSeconds -= 1
-            if (remainingSeconds == 0) {
-                triggerVibration(context)
-                onFinishedOrDismissed()
-            }
+    LaunchedEffect(remainingSeconds, isVisible) {
+        if (isVisible && totalSeconds > 0 && remainingSeconds == 0) {
+            triggerVibration(context)
+            onFinishedOrDismissed()
         }
     }
 
@@ -94,35 +99,46 @@ fun RestTimerPill(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f, fill = false)
+                ) {
                     Box(contentAlignment = Alignment.Center) {
                         val progress = if (totalSeconds > 0) remainingSeconds.toFloat() / totalSeconds.toFloat() else 0f
                         CircularProgressIndicator(
                             progress = { progress },
-                            color = AthleticOrange,
+                            color = timerAccent,
                             trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                            modifier = Modifier.size(36.dp),
-                            strokeWidth = 3.dp
+                            modifier = Modifier.size(38.dp),
+                            strokeWidth = 3.5.dp
                         )
-                        Icon(
-                            imageVector = Icons.Default.Timer,
-                            contentDescription = null,
-                            tint = AthleticOrange,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        IconButton(
+                            onClick = onPauseResume,
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                                contentDescription = if (isPaused) "Wznów timer" else "Zatrzymaj timer",
+                                tint = timerAccent,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
 
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
 
                     Column {
                         Text(
-                            text = "Czas na przerwę",
+                            text = if (isPaused) "$label (Wstrzymano)" else label,
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (isPaused) timerAccent else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                         val mins = remainingSeconds / 60
                         val secs = remainingSeconds % 60
@@ -130,7 +146,7 @@ fun RestTimerPill(
                             text = String.format("%02d:%02d", mins, secs),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = ElectricCyan,
+                            color = if (isPaused) MaterialTheme.colorScheme.onSurfaceVariant else timerAccent,
                             fontSize = 18.sp
                         )
                     }
@@ -139,9 +155,7 @@ fun RestTimerPill(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // -15s
                     IconButton(
-                        onClick = {
-                            remainingSeconds = (remainingSeconds - 15).coerceAtLeast(1)
-                        },
+                        onClick = { onReduceSeconds(15) },
                         modifier = Modifier.size(32.dp)
                     ) {
                         Text(
@@ -154,9 +168,7 @@ fun RestTimerPill(
 
                     // +30s
                     IconButton(
-                        onClick = {
-                            remainingSeconds += 30
-                        },
+                        onClick = { onAddSeconds(30) },
                         modifier = Modifier.size(32.dp)
                     ) {
                         Text(
@@ -187,6 +199,30 @@ fun RestTimerPill(
             }
         }
     }
+}
+
+/**
+ * Przeciążenie zachowujące kompatybilność wsteczną.
+ */
+@Composable
+fun RestTimerPill(
+    totalSeconds: Int,
+    isVisible: Boolean,
+    onFinishedOrDismissed: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    RestTimerPill(
+        totalSeconds = totalSeconds,
+        remainingSeconds = totalSeconds,
+        isVisible = isVisible,
+        isPaused = false,
+        label = "Czas na przerwę",
+        onPauseResume = {},
+        onAddSeconds = {},
+        onReduceSeconds = {},
+        onFinishedOrDismissed = onFinishedOrDismissed,
+        modifier = modifier
+    )
 }
 
 private fun triggerVibration(context: Context) {

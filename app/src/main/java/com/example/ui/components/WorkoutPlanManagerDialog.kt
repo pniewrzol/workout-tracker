@@ -10,11 +10,13 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -117,16 +119,27 @@ fun WorkoutPlanManagerDialog(
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
     ) {
-        Surface(
+        Box(
             modifier = Modifier
-                .fillMaxWidth(0.96f)
-                .fillMaxHeight(0.92f),
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp
+                .fillMaxSize()
+                .padding(horizontal = 14.dp, vertical = 20.dp),
+            contentAlignment = Alignment.Center
         ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight()
+                    .widthIn(max = 560.dp),
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp
+            ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -397,7 +410,9 @@ fun WorkoutPlanManagerDialog(
                                                     Text(
                                                         text = ex.name,
                                                         fontSize = 12.sp,
-                                                        maxLines = 1
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.weight(1f)
                                                     )
                                                 }
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -497,7 +512,9 @@ fun WorkoutPlanManagerDialog(
                                                         text = ex.name,
                                                         fontSize = 13.sp,
                                                         fontWeight = FontWeight.Medium,
-                                                        maxLines = 1
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.weight(1f)
                                                     )
                                                 }
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -531,6 +548,7 @@ fun WorkoutPlanManagerDialog(
                 }
             }
         }
+    }
     }
 
     // Dialog: Create Plan (Kompleksowe tworzenie planu z własną numeracją i rozgrzewką)

@@ -8,6 +8,7 @@ package com.example.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -46,6 +47,7 @@ import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.Timer
@@ -73,6 +75,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -92,7 +95,10 @@ import com.example.ui.components.RestTimerPill
 import com.example.ui.theme.AthleticOrange
 import com.example.ui.theme.ElectricCyan
 import com.example.ui.theme.SuccessGreen
+import com.example.util.SupersetHelper
+import com.example.util.SupersetInfo
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
@@ -103,14 +109,20 @@ fun WorkoutActiveScreen(
     allCompletedSets: List<WorkoutSetLog> = emptyList(),
     restTimerSeconds: Int,
     isRestTimerActive: Boolean,
-    onToggleSetCompleted: (WorkoutSetLog, restSeconds: Int) -> Unit,
+    restTimerRemainingSeconds: Int = restTimerSeconds,
+    isRestTimerPaused: Boolean = false,
+    restTimerLabel: String = "Czas na przerwę",
+    onToggleSetCompleted: (setLog: WorkoutSetLog, restSeconds: Int, nextSupersetExerciseName: String?, isFirstInSuperset: Boolean) -> Unit,
     onUpdateSet: (WorkoutSetLog) -> Unit,
     onAddSet: (exerciseId: Long, nextSetNumber: Int, defaultReps: Int, defaultWeight: Float, defaultTimeSeconds: Int?, defaultDistanceMeters: Float?) -> Unit,
     onRemoveSet: (WorkoutSetLog) -> Unit,
     onFinishWorkout: (notes: String) -> Unit,
     onDiscardWorkout: () -> Unit,
     onDismissTimer: () -> Unit,
-    onStartTimer: (Int) -> Unit = {},
+    onStartTimer: (seconds: Int, label: String) -> Unit = { _, _ -> },
+    onPauseResumeTimer: () -> Unit = {},
+    onAddTimerSeconds: (Int) -> Unit = {},
+    onReduceTimerSeconds: (Int) -> Unit = {},
     onExerciseDetailsClick: (Long) -> Unit,
     onMinimize: () -> Unit = {},
     onNavigateToExercises: () -> Unit = {},
@@ -120,6 +132,7 @@ fun WorkoutActiveScreen(
     lastViewedExerciseId: Long? = null,
     modifier: Modifier = Modifier
 ) {
+    val coroutineScope = rememberCoroutineScope()
     var showFinishDialog by remember { mutableStateOf(false) }
     var showDiscardDialog by remember { mutableStateOf(false) }
     var workoutNotes by remember { mutableStateOf(session.notes) }
@@ -139,9 +152,18 @@ fun WorkoutActiveScreen(
         onMinimize()
     }
 
-    val elapsedMinutes = elapsedSeconds / 60
-    val elapsedRemainingSec = elapsedSeconds % 60
-    val timerString = String.format("%02d:%02d", elapsedMinutes, elapsedRemainingSec)
+    val timerString = remember(elapsedSeconds) {
+        if (elapsedSeconds >= 3600) {
+            val hours = elapsedSeconds / 3600
+            val mins = (elapsedSeconds % 3600) / 60
+            val secs = elapsedSeconds % 60
+            String.format("%02d:%02d:%02d", hours, mins, secs)
+        } else {
+            val mins = elapsedSeconds / 60
+            val secs = elapsedSeconds % 60
+            String.format("%02d:%02d", mins, secs)
+        }
+    }
 
     val exerciseMap = remember(allExercises) {
         allExercises.associateBy { it.id }
@@ -154,6 +176,14 @@ fun WorkoutActiveScreen(
             map.getOrPut(setLog.exerciseId) { mutableListOf() }.add(setLog)
         }
         map
+    }
+
+    val activeExercises = remember(groupedSets.keys, exerciseMap) {
+        groupedSets.keys.mapNotNull { exerciseMap[it] }
+    }
+
+    val supersetsMap = remember(activeExercises) {
+        SupersetHelper.detectSupersets(activeExercises)
     }
 
     LaunchedEffect(lastViewedExerciseId, groupedSets.keys) {
@@ -251,10 +281,16 @@ fun WorkoutActiveScreen(
             )
         },
         bottomBar = {
-            // Floating Rest Timer
+            // Floating Rest / Exercise Timer
             RestTimerPill(
                 totalSeconds = restTimerSeconds,
+                remainingSeconds = restTimerRemainingSeconds,
                 isVisible = isRestTimerActive,
+                isPaused = isRestTimerPaused,
+                label = restTimerLabel,
+                onPauseResume = onPauseResumeTimer,
+                onAddSeconds = onAddTimerSeconds,
+                onReduceSeconds = onReduceTimerSeconds,
                 onFinishedOrDismissed = onDismissTimer
             )
         }
@@ -312,7 +348,7 @@ fun WorkoutActiveScreen(
                 }
             }
 
-            // Quick navigation chips to browse app without interrupting workout
+            // Quick navigation chips to browse app without interrupting workout & quick timers
             item {
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
@@ -325,6 +361,36 @@ fun WorkoutActiveScreen(
                             leadingIcon = { Icon(Icons.Default.Home, null, Modifier.size(14.dp)) },
                             colors = AssistChipDefaults.assistChipColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                            )
+                        )
+                    }
+                    item {
+                        AssistChip(
+                            onClick = { onStartTimer(60, "Czas na przerwę (60s)") },
+                            label = { Text("Przerwa 60s", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                            leadingIcon = { Icon(Icons.Default.Timer, null, Modifier.size(14.dp), tint = AthleticOrange) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = AthleticOrange.copy(alpha = 0.15f)
+                            )
+                        )
+                    }
+                    item {
+                        AssistChip(
+                            onClick = { onStartTimer(90, "Czas na przerwę (90s)") },
+                            label = { Text("Przerwa 90s", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                            leadingIcon = { Icon(Icons.Default.Timer, null, Modifier.size(14.dp), tint = AthleticOrange) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = AthleticOrange.copy(alpha = 0.15f)
+                            )
+                        )
+                    }
+                    item {
+                        AssistChip(
+                            onClick = { onStartTimer(120, "Czas na przerwę (120s)") },
+                            label = { Text("Przerwa 120s", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                            leadingIcon = { Icon(Icons.Default.Timer, null, Modifier.size(14.dp), tint = AthleticOrange) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = AthleticOrange.copy(alpha = 0.15f)
                             )
                         )
                     }
@@ -400,12 +466,38 @@ fun WorkoutActiveScreen(
                             }
                         }
 
+                        val supersetInfo = supersetsMap[exercise.id]
+                        val isFirstInSuperset = supersetInfo != null && !supersetInfo.isLastInGroup
+                        val nextSupersetName = if (isFirstInSuperset) {
+                            val partner = supersetInfo?.partnerExercises?.firstOrNull()
+                            partner?.name ?: supersetInfo?.groupKey
+                        } else if (supersetInfo != null) {
+                            supersetInfo.groupKey
+                        } else {
+                            null
+                        }
+
                         ExerciseWorkoutCard(
                             exercise = exercise,
                             sets = exerciseSets,
                             previousSummary = previousSummary,
+                            supersetInfo = supersetInfo,
+                            onNavigateToPartner = { partnerId ->
+                                val exKeys = groupedSets.keys.toList()
+                                val pIndex = exKeys.indexOf(partnerId)
+                                if (pIndex >= 0) {
+                                    coroutineScope.launch {
+                                        listState.animateScrollToItem(pIndex + 2)
+                                    }
+                                }
+                            },
                             onToggleCompleted = { setLog ->
-                                onToggleSetCompleted(setLog, exercise.restSeconds)
+                                onToggleSetCompleted(
+                                    setLog,
+                                    exercise.restSeconds,
+                                    nextSupersetName,
+                                    isFirstInSuperset
+                                )
                             },
                             onUpdateSet = onUpdateSet,
                             onAddSet = {
@@ -432,7 +524,9 @@ fun WorkoutActiveScreen(
                                 )
                             },
                             onRemoveSet = onRemoveSet,
-                            onStartTimerForSet = onStartTimer,
+                            onStartTimerForSet = { sec, lbl ->
+                                onStartTimer(sec, lbl)
+                            },
                             onDetailsClick = { onExerciseDetailsClick(exercise.id) }
                         )
                     }
@@ -529,11 +623,13 @@ fun ExerciseWorkoutCard(
     exercise: Exercise,
     sets: List<WorkoutSetLog>,
     previousSummary: String? = null,
+    supersetInfo: SupersetInfo? = null,
+    onNavigateToPartner: ((Long) -> Unit)? = null,
     onToggleCompleted: (WorkoutSetLog) -> Unit,
     onUpdateSet: (WorkoutSetLog) -> Unit,
     onAddSet: () -> Unit,
     onRemoveSet: (WorkoutSetLog) -> Unit,
-    onStartTimerForSet: (Int) -> Unit,
+    onStartTimerForSet: (seconds: Int, label: String) -> Unit,
     onDetailsClick: () -> Unit
 ) {
     val measurementType = exercise.getEffectiveMeasurementType()
@@ -541,10 +637,72 @@ fun ExerciseWorkoutCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(
+            containerColor = if (supersetInfo != null) Color(0xFF1E1B4B).copy(alpha = 0.35f) else MaterialTheme.colorScheme.surface
+        ),
+        border = if (supersetInfo != null) BorderStroke(1.5.dp, Color(0xFF8B5CF6).copy(alpha = 0.55f)) else null,
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
+            // Superset banner if exercise is part of a superset (np. C.5a, C.5b)
+            if (supersetInfo != null) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFF8B5CF6).copy(alpha = 0.18f),
+                    border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.45f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Link,
+                                contentDescription = null,
+                                tint = Color(0xFFA78BFA),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "SERIA ŁĄCZONA ${supersetInfo.groupKey.uppercase()} (${supersetInfo.letter.uppercase()})",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                color = Color(0xFFE9D5FF),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        if (supersetInfo.partnerExercises.isNotEmpty()) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            val partner = supersetInfo.partnerExercises.first()
+                            TextButton(
+                                onClick = { onNavigateToPartner?.invoke(partner.id) },
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "Do: ${partner.code.ifBlank { partner.name.take(8) }} →",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFA78BFA),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // Exercise Title and Action buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -785,7 +943,9 @@ fun ExerciseWorkoutCard(
                             onToggleCompleted = { onToggleCompleted(setLog) },
                             onUpdateSet = onUpdateSet,
                             onDeleteSet = { onRemoveSet(setLog) },
-                            onStartTimer = onStartTimerForSet
+                            onStartTimer = { sec ->
+                                onStartTimerForSet(sec, "Czas serii: ${exercise.name} (seria ${setLog.setNumber})")
+                            }
                         )
                     }
                     ExerciseType.BODYWEIGHT_REPS -> {

@@ -56,6 +56,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.db.AppDatabase
 import com.example.data.repository.WorkoutRepository
+import com.example.ui.components.RestTimerPill
 import com.example.ui.screens.BodyMeasurementsScreen
 import com.example.ui.screens.ExerciseDetailScreen
 import com.example.ui.screens.ExerciseListScreen
@@ -133,7 +134,10 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
     val activePlan by viewModel.activePlan.collectAsStateWithLifecycle()
 
     val restTimerSeconds by viewModel.restTimerSeconds.collectAsStateWithLifecycle()
+    val restTimerRemainingSeconds by viewModel.restTimerRemainingSeconds.collectAsStateWithLifecycle()
     val isRestTimerActive by viewModel.isRestTimerActive.collectAsStateWithLifecycle()
+    val isRestTimerPaused by viewModel.isRestTimerPaused.collectAsStateWithLifecycle()
+    val restTimerLabel by viewModel.restTimerLabel.collectAsStateWithLifecycle()
 
     val selectedExercise by viewModel.selectedExercise.collectAsStateWithLifecycle()
     val selectedExerciseMedia by viewModel.selectedExerciseMedia.collectAsStateWithLifecycle()
@@ -204,6 +208,21 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
         bottomBar = {
             if (!isFullscreenSubScreen) {
                 Column {
+                    // Floating Rest / Exercise Timer when active across any screen
+                    if (isRestTimerActive && activeSession != null) {
+                        RestTimerPill(
+                            totalSeconds = restTimerSeconds,
+                            remainingSeconds = restTimerRemainingSeconds,
+                            isVisible = isRestTimerActive,
+                            isPaused = isRestTimerPaused,
+                            label = restTimerLabel,
+                            onPauseResume = { viewModel.pauseResumeRestTimer() },
+                            onAddSeconds = { viewModel.addRestSeconds(it) },
+                            onReduceSeconds = { viewModel.reduceRestSeconds(it) },
+                            onFinishedOrDismissed = { viewModel.dismissRestTimer() }
+                        )
+                    }
+
                     // Ongoing workout mini resume bar if active
                     if (activeSession != null) {
                         Surface(
@@ -450,9 +469,17 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                             allExercises = allExercises,
                             allCompletedSets = allCompletedSets,
                             restTimerSeconds = restTimerSeconds,
+                            restTimerRemainingSeconds = restTimerRemainingSeconds,
                             isRestTimerActive = isRestTimerActive,
-                            onToggleSetCompleted = { setLog, restSec ->
-                                viewModel.toggleSetCompleted(setLog, restSec)
+                            isRestTimerPaused = isRestTimerPaused,
+                            restTimerLabel = restTimerLabel,
+                            onToggleSetCompleted = { setLog, restSec, nextSupersetName, isFirstInSuperset ->
+                                viewModel.toggleSetCompleted(
+                                    setLog = setLog,
+                                    exerciseRestSeconds = restSec,
+                                    nextSupersetExerciseName = nextSupersetName,
+                                    isFirstInSuperset = isFirstInSuperset
+                                )
                             },
                             onUpdateSet = { setLog ->
                                 viewModel.updateSetLog(setLog)
@@ -479,7 +506,10 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                                 currentScreenRoute = "home"
                             },
                             onDismissTimer = { viewModel.dismissRestTimer() },
-                            onStartTimer = { seconds -> viewModel.startRestTimer(seconds) },
+                            onStartTimer = { seconds, label -> viewModel.startRestTimer(seconds, label) },
+                            onPauseResumeTimer = { viewModel.pauseResumeRestTimer() },
+                            onAddTimerSeconds = { viewModel.addRestSeconds(it) },
+                            onReduceTimerSeconds = { viewModel.reduceRestSeconds(it) },
                             onExerciseDetailsClick = { exId ->
                                 previousDetailRoute = "active_workout"
                                 lastViewedExerciseIdInWorkout = exId

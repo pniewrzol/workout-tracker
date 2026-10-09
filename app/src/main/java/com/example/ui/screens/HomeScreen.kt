@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -82,6 +83,7 @@ import androidx.compose.runtime.setValue
 import com.example.data.model.BodyMeasurement
 import com.example.data.model.WorkoutPlan
 import com.example.ui.components.WorkoutPlanManagerDialog
+import com.example.ui.components.WorkoutPlanPreviewDialog
 import com.example.ui.components.WorkoutReportDialog
 
 @Composable
@@ -113,6 +115,7 @@ fun HomeScreen(
 ) {
     var showReportDialog by remember { mutableStateOf(false) }
     var showPlanManagerDialog by remember { mutableStateOf(false) }
+    var previewWorkoutData by remember { mutableStateOf<Triple<String, List<Exercise>, String>?>(null) }
     val mainSessionIds = remember(completedSessions) {
         completedSessions.filter { it.isMainWorkout }.map { it.id }.toSet()
     }
@@ -453,6 +456,9 @@ fun HomeScreen(
                     setsTotal = activePlanWarmups.sumOf { it.targetSets }.coerceAtLeast(activePlanWarmups.size),
                     estimatedMin = "15 min",
                     badgeColor = SuccessGreen,
+                    onPreview = {
+                        previewWorkoutData = Triple("Rozgrzewka & Mobilizacja", activePlanWarmups, "15 min")
+                    },
                     onStart = {
                         onStartWorkout("Rozgrzewka & Mobilizacja", activePlanWarmups)
                     }
@@ -474,46 +480,58 @@ fun HomeScreen(
         if (currentPlanId == 1L) {
             // Default 3-day FBW Plan (A, B, C)
             item {
+                val exercisesA = remember(allExercises) { allExercises.filter { it.section == "Trening A" } }
+                val estA = getWorkoutEstimatedTime("Trening A", "95 - 110 min")
                 WorkoutPlanCard(
                     title = "Trening A",
                     subtitle = "Powerband Chin-ups, Dips, Wykroki, OHP, Ramiona, Brzuch, Plank boczny (czas)",
-                    exerciseCount = 8,
-                    setsTotal = 30,
-                    estimatedMin = getWorkoutEstimatedTime("Trening A", "95 - 110 min"),
+                    exerciseCount = exercisesA.size.coerceAtLeast(8),
+                    setsTotal = exercisesA.sumOf { it.targetSets }.coerceAtLeast(30),
+                    estimatedMin = estA,
                     badgeColor = AthleticOrange,
+                    onPreview = {
+                        previewWorkoutData = Triple("Trening A", exercisesA, estA)
+                    },
                     onStart = {
-                        val exercises = allExercises.filter { it.section == "Trening A" }
-                        onStartWorkout("Trening A", exercises)
+                        onStartWorkout("Trening A", exercisesA)
                     }
                 )
             }
 
             item {
+                val exercisesB = remember(allExercises) { allExercises.filter { it.section == "Trening B" } }
+                val estB = getWorkoutEstimatedTime("Trening B", "110 - 125 min")
                 WorkoutPlanCard(
                     title = "Trening B",
                     subtitle = "Semi Sumo Martwy Ciąg, Skos Hammer, Wiosło, Bok barku, Ramiona, Brzuch, Schody (czas)",
-                    exerciseCount = 9,
-                    setsTotal = 31,
-                    estimatedMin = getWorkoutEstimatedTime("Trening B", "110 - 125 min"),
+                    exerciseCount = exercisesB.size.coerceAtLeast(9),
+                    setsTotal = exercisesB.sumOf { it.targetSets }.coerceAtLeast(31),
+                    estimatedMin = estB,
                     badgeColor = ElectricCyan,
+                    onPreview = {
+                        previewWorkoutData = Triple("Trening B", exercisesB, estB)
+                    },
                     onStart = {
-                        val exercises = allExercises.filter { it.section == "Trening B" }
-                        onStartWorkout("Trening B", exercises)
+                        onStartWorkout("Trening B", exercisesB)
                     }
                 )
             }
 
             item {
+                val exercisesC = remember(allExercises) { allExercises.filter { it.section == "Trening C" } }
+                val estC = getWorkoutEstimatedTime("Trening C", "100 - 115 min")
                 WorkoutPlanCard(
                     title = "Trening C",
                     subtitle = "Spacer farmera (ciężar + dystans), Pallof Press, Wyciskanie hantli, Chin-up hold (czas), Tył barku, Piłka, Kółko",
-                    exerciseCount = 9,
-                    setsTotal = 33,
-                    estimatedMin = getWorkoutEstimatedTime("Trening C", "100 - 115 min"),
+                    exerciseCount = exercisesC.size.coerceAtLeast(9),
+                    setsTotal = exercisesC.sumOf { it.targetSets }.coerceAtLeast(33),
+                    estimatedMin = estC,
                     badgeColor = GoldPr,
+                    onPreview = {
+                        previewWorkoutData = Triple("Trening C", exercisesC, estC)
+                    },
                     onStart = {
-                        val exercises = allExercises.filter { it.section == "Trening C" }
-                        onStartWorkout("Trening C", exercises)
+                        onStartWorkout("Trening C", exercisesC)
                     }
                 )
             }
@@ -570,13 +588,17 @@ fun HomeScreen(
                         val cardioMin = workoutExs.count { it.isTimeBased() || it.bodyPart.contains("cardio", ignoreCase = true) } * 15
                         "${(totalSets * 2.8 + cardioMin + 15).toInt()} min"
                     }
+                    val estTimeDisplay = getWorkoutEstimatedTime(workoutName, estMin)
                     WorkoutPlanCard(
                         title = workoutName,
                         subtitle = if (workoutExs.isNotEmpty()) workoutExs.joinToString(", ") { it.name } else "Brak ćwiczeń w tym treningu (kliknij, aby rozpocząć lub dodać ćwiczenia)",
                         exerciseCount = workoutExs.size,
                         setsTotal = totalSets,
-                        estimatedMin = getWorkoutEstimatedTime(workoutName, estMin),
+                        estimatedMin = estTimeDisplay,
                         badgeColor = AthleticOrange,
+                        onPreview = {
+                            previewWorkoutData = Triple(workoutName, workoutExs, estTimeDisplay)
+                        },
                         onStart = {
                             onStartWorkout(workoutName, workoutExs)
                         }
@@ -698,6 +720,23 @@ fun HomeScreen(
             onDismiss = { showPlanManagerDialog = false }
         )
     }
+
+    previewWorkoutData?.let { (wName, wExs, wEst) ->
+        WorkoutPlanPreviewDialog(
+            workoutName = wName,
+            exercises = wExs,
+            estimatedTime = wEst,
+            onDismiss = { previewWorkoutData = null },
+            onStartWorkout = {
+                previewWorkoutData = null
+                onStartWorkout(wName, wExs)
+            },
+            onExerciseClick = { exId ->
+                previewWorkoutData = null
+                onExerciseClick(exId)
+            }
+        )
+    }
 }
 
 @Composable
@@ -796,10 +835,13 @@ fun WorkoutPlanCard(
     setsTotal: Int,
     estimatedMin: String,
     badgeColor: Color,
+    onPreview: () -> Unit = {},
     onStart: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onPreview() },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -809,6 +851,7 @@ fun WorkoutPlanCard(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
+            // Nagłówek: wskaźnik koloru, tytuł planu i pigułka z szacowanym czasem
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -816,7 +859,7 @@ fun WorkoutPlanCard(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f, fill = false)
+                    modifier = Modifier.weight(1f)
                 ) {
                     Box(
                         modifier = Modifier
@@ -862,40 +905,91 @@ fun WorkoutPlanCard(
                 overflow = TextOverflow.Ellipsis
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
+            // Informacje o liczbie ćwiczeń i serii
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "$exerciseCount ćwiczeń • $setsTotal serii",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FitnessCenter,
+                            contentDescription = null,
+                            tint = badgeColor,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = "$exerciseCount ćwiczeń • $setsTotal serii",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
 
-                Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Dedykowany, responsywny wiersz przycisków (nigdy nie nachodzi na tekst i nie rozjeżdża się)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = onPreview,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(42.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Visibility,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Podgląd",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        maxLines = 1
+                    )
+                }
 
                 Button(
                     onClick = onStart,
+                    modifier = Modifier
+                        .weight(1.3f)
+                        .height(42.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = badgeColor),
                     shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "Rozpocznij",
                         fontWeight = FontWeight.Bold,
-                        color = if (badgeColor == GoldPr) Color.Black else Color.White
+                        fontSize = 13.sp,
+                        color = if (badgeColor == GoldPr) Color.Black else Color.White,
+                        maxLines = 1
                     )
                 }
             }
