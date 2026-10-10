@@ -5,8 +5,15 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.util.Base64
+import android.util.Log
+import android.widget.Toast
 import androidx.core.content.FileProvider
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import com.example.R
 import com.example.data.model.BodyMeasurement
 import com.example.data.model.Exercise
@@ -22,35 +29,95 @@ import java.util.Locale
 
 object HtmlReportExporter {
 
+    private const val TAG = "HtmlReportExporter"
+
+    fun escapeHtml(text: String?): String {
+        if (text == null) return ""
+        val sb = StringBuilder(text.length)
+        for (ch in text) {
+            when (ch) {
+                '&' -> sb.append("&amp;")
+                '<' -> sb.append("&lt;")
+                '>' -> sb.append("&gt;")
+                '"' -> sb.append("&quot;")
+                '\'' -> sb.append("&#39;")
+                else -> sb.append(ch)
+            }
+        }
+        return sb.toString()
+    }
+
+    private fun formatTonnage(tonnage: Double): String {
+        return if (tonnage % 1.0 == 0.0) {
+            tonnage.toLong().toString()
+        } else {
+            String.format(Locale.US, "%.1f", tonnage)
+        }
+    }
+
     private fun encodeUriToBase64(context: Context, uriString: String?): String? {
         if (uriString.isNullOrBlank()) return null
         return try {
             val uri = Uri.parse(uriString)
-            val inputStream = context.contentResolver.openInputStream(uri)
-                ?: if (File(uriString).exists()) FileInputStream(File(uriString)) else null
 
-            inputStream?.use { stream ->
-                val bytes = stream.readBytes()
-                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                if (bitmap != null) {
-                    val maxDim = 800
-                    val ratio = Math.min(maxDim.toFloat() / bitmap.width, maxDim.toFloat() / bitmap.height)
-                    val scaled = if (ratio < 1f) {
-                        Bitmap.createScaledBitmap(
-                            bitmap,
-                            (bitmap.width * ratio).toInt(),
-                            (bitmap.height * ratio).toInt(),
-                            true
-                        )
-                    } else bitmap
-                    val baos = ByteArrayOutputStream()
-                    scaled.compress(Bitmap.CompressFormat.JPEG, 75, baos)
-                    Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
-                } else {
-                    Base64.encodeToString(bytes, Base64.NO_WRAP)
-                }
+            // Krok 1: Odczytaj wymiary z inJustDecodeBounds bez alokacji bitmapy w pamięci
+            val boundsOptions = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
             }
-        } catch (e: Exception) {
+            val openBoundsStream = {
+                context.contentResolver.openInputStream(uri)
+                    ?: if (File(uriString).exists()) FileInputStream(File(uriString)) else null
+            }
+
+            openBoundsStream()?.use { stream ->
+                BitmapFactory.decodeStream(stream, null, boundsOptions)
+            }
+
+            if (boundsOptions.outWidth <= 0 || boundsOptions.outHeight <= 0) return null
+
+            // Krok 2: Oblicz inSampleSize do limitu 800px (zapobiega OutOfMemoryError)
+            val maxDim = 800
+            var inSampleSize = 1
+            var halfWidth = boundsOptions.outWidth / 2
+            var halfHeight = boundsOptions.outHeight / 2
+            while (halfWidth / inSampleSize >= maxDim && halfHeight / inSampleSize >= maxDim) {
+                inSampleSize *= 2
+            }
+
+            val decodeOptions = BitmapFactory.Options().apply {
+                this.inSampleSize = inSampleSize
+                inPreferredConfig = Bitmap.Config.RGB_565 // Oszczędność 50% pamięci RAM
+            }
+
+            val openDataStream = {
+                context.contentResolver.openInputStream(uri)
+                    ?: if (File(uriString).exists()) FileInputStream(File(uriString)) else null
+            }
+
+            val bitmap = openDataStream()?.use { stream ->
+                BitmapFactory.decodeStream(stream, null, decodeOptions)
+            } ?: return null
+
+            val ratio = Math.min(maxDim.toFloat() / bitmap.width, maxDim.toFloat() / bitmap.height)
+            val scaled = if (ratio < 1f) {
+                val s = Bitmap.createScaledBitmap(
+                    bitmap,
+                    (bitmap.width * ratio).toInt().coerceAtLeast(1),
+                    (bitmap.height * ratio).toInt().coerceAtLeast(1),
+                    true
+                )
+                if (s != bitmap) {
+                    bitmap.recycle()
+                }
+                s
+            } else bitmap
+
+            val baos = ByteArrayOutputStream()
+            scaled.compress(Bitmap.CompressFormat.JPEG, 75, baos)
+            scaled.recycle()
+            Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
+        } catch (t: Throwable) {
+            Log.w(TAG, "Nie udało się zakodować zdjęcia: ${t.message}")
             null
         }
     }
@@ -61,17 +128,23 @@ object HtmlReportExporter {
             val maxDim = 800
             val ratio = Math.min(maxDim.toFloat() / bitmap.width, maxDim.toFloat() / bitmap.height)
             val scaled = if (ratio < 1f) {
-                Bitmap.createScaledBitmap(
+                val s = Bitmap.createScaledBitmap(
                     bitmap,
-                    (bitmap.width * ratio).toInt(),
-                    (bitmap.height * ratio).toInt(),
+                    (bitmap.width * ratio).toInt().coerceAtLeast(1),
+                    (bitmap.height * ratio).toInt().coerceAtLeast(1),
                     true
                 )
+                if (s != bitmap) {
+                    bitmap.recycle()
+                }
+                s
             } else bitmap
             val baos = ByteArrayOutputStream()
             scaled.compress(Bitmap.CompressFormat.JPEG, 75, baos)
+            scaled.recycle()
             Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
-        } catch (e: Exception) {
+        } catch (t: Throwable) {
+            Log.w(TAG, "Nie udało się zakodować zasobu: ${t.message}")
             null
         }
     }
@@ -93,16 +166,17 @@ object HtmlReportExporter {
         allMeasurements: List<BodyMeasurement>,
         cutoffTime: Long
     ) {
-        val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
-        val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-        val generatedDateStr = dateFormat.format(Date())
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
+            val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+            val generatedDateStr = dateFormat.format(Date())
 
-        val exerciseMap = allExercises.associateBy { it.id }
+            val exerciseMap = allExercises.associateBy { it.id }
 
-        // Filter sessions and measurements in period
-        val periodSessions = sessions.filter { it.isCompleted && it.startTime >= cutoffTime }.sortedByDescending { it.startTime }
-        val periodSessionIds = periodSessions.map { it.id }.toSet()
-        val periodSets = allSets.filter { it.isCompleted && it.sessionId in periodSessionIds }
+            // Filter sessions and measurements in period
+            val periodSessions = sessions.filter { it.isCompleted && it.startTime >= cutoffTime }.sortedByDescending { it.startTime }
+            val periodSessionIds = periodSessions.map { it.id }.toSet()
+            val periodSets = allSets.filter { it.isCompleted && it.sessionId in periodSessionIds }
         val periodMeasurements = allMeasurements.filter { it.timestamp >= cutoffTime }.sortedBy { it.timestamp }
 
         // Exclude warmup & mobility from main workout sessions
@@ -241,7 +315,7 @@ object HtmlReportExporter {
             <div class="container">
                 <div class="header">
                     <h1>Raport Treningowy</h1>
-                    <div class="period-badge">Zakres: ${reportData.periodLabel} (${reportData.dateRangeStr})</div>
+                    <div class="period-badge">Zakres: ${escapeHtml(reportData.periodLabel)} (${escapeHtml(reportData.dateRangeStr)})</div>
                     <p>Wygenerowano: $generatedDateStr | Gym Workout & Body Tracker</p>
                 </div>
 
@@ -254,7 +328,7 @@ object HtmlReportExporter {
                     </div>
                     <div class="stat-card">
                         <div class="label">Łączny Tonaż</div>
-                        <div class="value cyan">${reportData.totalTonnageKg} kg</div>
+                        <div class="value cyan">${formatTonnage(reportData.totalTonnageKg.toDouble())} kg</div>
                         <div class="subtext">${String.format(Locale.US, "%.1f", reportData.totalTonnageKg / 1000f)} ton przerzuconego ciężaru</div>
                     </div>
                     <div class="stat-card">
@@ -600,7 +674,7 @@ object HtmlReportExporter {
                         <td>${m.bicepsCm ?: "-"}</td>
                         <td>${m.thighsCm ?: "-"}</td>
                         <td>${m.calvesCm ?: "-"}</td>
-                        <td><small>${m.notes}</small></td>
+                        <td><small>${escapeHtml(m.notes)}</small></td>
                     </tr>
                 """.trimIndent())
             }
@@ -618,7 +692,7 @@ object HtmlReportExporter {
         } else {
             for (session in periodSessions) {
                 val sSets = periodSets.filter { it.sessionId == session.id }
-                val sessionTonnage = sSets.sumOf { (it.weightKg * it.reps).toLong() }
+                val sessionTonnage = sSets.sumOf { it.weightKg.toDouble() * it.reps }
                 val durationMin = if (session.endTime > session.startTime) {
                     ((session.endTime - session.startTime) / 60000).coerceAtLeast(1)
                 } else 0
@@ -628,21 +702,21 @@ object HtmlReportExporter {
                         <div class="session-card-header">
                             <div>
                                 <span class="session-card-title">
-                                    ${session.workoutName}
+                                    ${escapeHtml(session.workoutName)}
                                     ${if (!session.isMainWorkout) "<span class='warmup-badge'>ROZGRZEWKA / MOBILITY</span>" else ""}
                                 </span>
                                 <div class="session-meta">${dateFormat.format(Date(session.startTime))} o ${timeFormat.format(Date(session.startTime))}</div>
                             </div>
                             <div style="display:flex; gap: 6px;">
                                 <span class="badge-pill">⏱️ ${durationMin} min</span>
-                                <span class="badge-pill" style="color:var(--accent-cyan);">🏋️ ${sessionTonnage} kg</span>
+                                <span class="badge-pill" style="color:var(--accent-cyan);">🏋️ ${formatTonnage(sessionTonnage)} kg</span>
                                 <span class="badge-pill">${sSets.size} serii</span>
                             </div>
                         </div>
                 """.trimIndent())
 
                 if (session.notes.isNotBlank()) {
-                    htmlBuilder.append("""<p style="font-size: 12px; color: #CBD5E1; margin-bottom: 10px; background: rgba(255,255,255,0.04); padding: 8px; border-radius: 6px;">📝 ${session.notes}</p>""")
+                    htmlBuilder.append("""<p style="font-size: 12px; color: #CBD5E1; margin-bottom: 10px; background: rgba(255,255,255,0.04); padding: 8px; border-radius: 6px;">📝 ${escapeHtml(session.notes)}</p>""")
                 }
 
                 // Exercise grouped sets
@@ -662,23 +736,23 @@ object HtmlReportExporter {
 
                 for ((exId, exSets) in groupedByExercise) {
                     val ex = exerciseMap[exId]
-                    val exName = ex?.name ?: "Ćwiczenie"
+                    val exName = escapeHtml(ex?.name ?: "Ćwiczenie")
                     val bestOverall = bestSetsMap[exId]
 
                     val setsStr = exSets.joinToString(" | ") { s ->
                         val isBest = s.id == bestOverall?.id
-                        val str = if (s.weightKg > 0) "${s.weightKg}kg × ${s.reps}" else "${s.reps} powt."
+                        val str = if (s.weightKg > 0) "${formatTonnage(s.weightKg.toDouble())}kg × ${s.reps}" else "${s.reps} powt."
                         if (isBest) "<strong style='color:var(--accent-gold);'>$str</strong>" else str
                     }
 
                     val bestSet = exSets.maxByOrNull { it.weightKg * it.reps }
                     val bestSetStr = if (bestSet != null) {
-                        "<span class='pr-badge'>★ ${if (bestSet.weightKg > 0) "${bestSet.weightKg}kg × ${bestSet.reps}" else "${bestSet.reps} powt."}</span>"
+                        "<span class='pr-badge'>★ ${if (bestSet.weightKg > 0) "${formatTonnage(bestSet.weightKg.toDouble())}kg × ${bestSet.reps}" else "${bestSet.reps} powt."}</span>"
                     } else "-"
 
                     htmlBuilder.append("""
                         <tr>
-                            <td><strong>${ex?.code?.let { "$it. " } ?: ""}$exName</strong></td>
+                            <td><strong>${ex?.code?.let { "${escapeHtml(it)}. " } ?: ""}$exName</strong></td>
                             <td>$setsStr</td>
                             <td>$bestSetStr</td>
                         </tr>
@@ -722,9 +796,15 @@ object HtmlReportExporter {
                 putExtra(Intent.EXTRA_SUBJECT, "Kompleksowy Raport Treningowy - $generatedDateStr")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(shareIntent, "Udostępnij lub Otwórz Raport HTML"))
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                context.startActivity(Intent.createChooser(shareIntent, "Udostępnij lub Otwórz Raport HTML"))
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.w(TAG, "Błąd podczas zapisywania lub udostępniania raportu HTML: ${e.message}")
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                Toast.makeText(context, "Nie udało się wyeksportować raportu HTML. Spróbuj ponownie.", Toast.LENGTH_LONG).show()
+            }
+        }
         }
     }
 }

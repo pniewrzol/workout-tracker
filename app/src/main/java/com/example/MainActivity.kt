@@ -434,7 +434,8 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                     WorkoutHistoryScreen(
                         sessions = completedSessions,
                         allCompletedSets = allCompletedSets,
-                        allExercises = allExercises
+                        allExercises = allExercises,
+                        onDeleteSession = { viewModel.deleteWorkoutSession(it) }
                     )
                 }
 

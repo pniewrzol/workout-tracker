@@ -55,6 +55,9 @@ interface WorkoutDao {
     @Query("SELECT * FROM workout_set_logs WHERE exerciseId = :exerciseId AND isCompleted = 1 ORDER BY timestamp ASC")
     fun getCompletedSetsForExercise(exerciseId: Long): Flow<List<WorkoutSetLog>>
 
+    @Query("SELECT COUNT(*) FROM workout_set_logs WHERE exerciseId = :exerciseId")
+    suspend fun getSetCountForExerciseDirect(exerciseId: Long): Int
+
     @Query("SELECT * FROM workout_set_logs WHERE isCompleted = 1 ORDER BY timestamp ASC")
     fun getAllCompletedSets(): Flow<List<WorkoutSetLog>>
 

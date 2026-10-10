@@ -155,6 +155,15 @@ abstract class AppDatabase : RoomDatabase() {
                     """.trimIndent())
                 }
             }
+
+            override fun onOpen(db: SupportSQLiteDatabase) {
+                super.onOpen(db)
+                scope.launch(Dispatchers.IO) {
+                    try {
+                        db.execSQL("UPDATE exercises SET planId = 1 WHERE planId <= 0")
+                    } catch (_: Exception) {}
+                }
+            }
         }
     }
 }

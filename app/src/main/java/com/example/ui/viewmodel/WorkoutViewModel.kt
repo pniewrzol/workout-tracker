@@ -226,6 +226,9 @@ class WorkoutViewModel(
     val restTimerLabel: StateFlow<String> = _restTimerLabel.asStateFlow()
 
     private var restTimerJob: Job? = null
+    private var targetEndTimeElapsedRealtime: Long = 0L
+    private var remainingSecondsWhenPaused: Int = 0
+    private val timerCompletionHandled = java.util.concurrent.atomic.AtomicBoolean(false)
 
     fun selectExercise(id: Long) {
         _selectedExerciseId.value = id
@@ -234,21 +237,28 @@ class WorkoutViewModel(
     fun startRestTimer(seconds: Int, label: String = "Czas na przerwę") {
         if (seconds > 0) {
             restTimerJob?.cancel()
+            timerCompletionHandled.set(false)
             _restTimerSeconds.value = seconds
             _restTimerRemainingSeconds.value = seconds
             _restTimerLabel.value = label
             _isRestTimerPaused.value = false
             _isRestTimerActive.value = true
+            remainingSecondsWhenPaused = seconds
+            targetEndTimeElapsedRealtime = android.os.SystemClock.elapsedRealtime() + seconds * 1000L
 
             restTimerJob = viewModelScope.launch {
-                while (_isRestTimerActive.value && _restTimerRemainingSeconds.value > 0) {
-                    delay(1000L)
+                while (_isRestTimerActive.value) {
+                    delay(250L)
                     if (!_isRestTimerPaused.value && _isRestTimerActive.value) {
-                        val current = _restTimerRemainingSeconds.value - 1
-                        _restTimerRemainingSeconds.value = current
-                        if (current <= 0) {
+                        val now = android.os.SystemClock.elapsedRealtime()
+                        val remainingMs = targetEndTimeElapsedRealtime - now
+                        val remainingSec = Math.ceil(remainingMs / 1000.0).toInt().coerceAtLeast(0)
+                        _restTimerRemainingSeconds.value = remainingSec
+                        if (remainingSec <= 0) {
                             _isRestTimerActive.value = false
-                            notifyRestTimerFinished()
+                            if (timerCompletionHandled.compareAndSet(false, true)) {
+                                notifyRestTimerFinished()
+                            }
                             break
                         }
                     }
@@ -259,20 +269,46 @@ class WorkoutViewModel(
 
     fun pauseResumeRestTimer() {
         if (_isRestTimerActive.value) {
-            _isRestTimerPaused.value = !_isRestTimerPaused.value
+            val willPause = !_isRestTimerPaused.value
+            _isRestTimerPaused.value = willPause
+            if (willPause) {
+                val now = android.os.SystemClock.elapsedRealtime()
+                val remainingMs = maxOf(0L, targetEndTimeElapsedRealtime - now)
+                remainingSecondsWhenPaused = Math.ceil(remainingMs / 1000.0).toInt().coerceAtLeast(0)
+                _restTimerRemainingSeconds.value = remainingSecondsWhenPaused
+            } else {
+                targetEndTimeElapsedRealtime = android.os.SystemClock.elapsedRealtime() + remainingSecondsWhenPaused * 1000L
+            }
         }
     }
 
     fun addRestSeconds(seconds: Int = 30) {
         if (_isRestTimerActive.value) {
-            _restTimerRemainingSeconds.value = _restTimerRemainingSeconds.value + seconds
-            _restTimerSeconds.value = maxOf(_restTimerSeconds.value, _restTimerRemainingSeconds.value)
+            if (_isRestTimerPaused.value) {
+                remainingSecondsWhenPaused += seconds
+                _restTimerRemainingSeconds.value = remainingSecondsWhenPaused
+                _restTimerSeconds.value = maxOf(_restTimerSeconds.value, remainingSecondsWhenPaused)
+            } else {
+                targetEndTimeElapsedRealtime += seconds * 1000L
+                val now = android.os.SystemClock.elapsedRealtime()
+                val remainingSec = Math.ceil((targetEndTimeElapsedRealtime - now) / 1000.0).toInt().coerceAtLeast(0)
+                _restTimerRemainingSeconds.value = remainingSec
+                _restTimerSeconds.value = maxOf(_restTimerSeconds.value, remainingSec)
+            }
         }
     }
 
     fun reduceRestSeconds(seconds: Int = 15) {
         if (_isRestTimerActive.value) {
-            _restTimerRemainingSeconds.value = maxOf(1, _restTimerRemainingSeconds.value - seconds)
+            if (_isRestTimerPaused.value) {
+                remainingSecondsWhenPaused = maxOf(1, remainingSecondsWhenPaused - seconds)
+                _restTimerRemainingSeconds.value = remainingSecondsWhenPaused
+            } else {
+                val now = android.os.SystemClock.elapsedRealtime()
+                targetEndTimeElapsedRealtime = maxOf(now + 1000L, targetEndTimeElapsedRealtime - seconds * 1000L)
+                val remainingSec = Math.ceil((targetEndTimeElapsedRealtime - now) / 1000.0).toInt().coerceAtLeast(1)
+                _restTimerRemainingSeconds.value = remainingSec
+            }
         }
     }
 
@@ -280,7 +316,9 @@ class WorkoutViewModel(
         restTimerJob?.cancel()
         restTimerJob = null
         _isRestTimerActive.value = false
+        _isRestTimerPaused.value = false
         _restTimerRemainingSeconds.value = 0
+        timerCompletionHandled.set(true)
     }
 
     fun startWorkout(workoutName: String, exercises: List<Exercise>, onStarted: (() -> Unit)? = null) {
@@ -386,6 +424,12 @@ class WorkoutViewModel(
         viewModelScope.launch {
             repository.discardWorkoutSession(current.id)
             dismissRestTimer()
+        }
+    }
+
+    fun deleteWorkoutSession(session: WorkoutSession) {
+        viewModelScope.launch {
+            repository.deleteWorkoutSession(session)
         }
     }
 

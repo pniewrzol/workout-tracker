@@ -3,6 +3,7 @@ package com.example.data.repository
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.room.withTransaction
 import com.example.data.db.AppDatabase
 import com.example.data.db.BodyMeasurementDao
 import com.example.data.db.ExerciseDao
@@ -240,74 +241,76 @@ class WorkoutRepository(
 
     // Workout Sessions
     suspend fun startWorkoutSession(workoutName: String, initialExercises: List<Exercise>): Long = withContext(Dispatchers.IO) {
-        val session = WorkoutSession(
-            workoutName = workoutName,
-            startTime = System.currentTimeMillis(),
-            endTime = 0
-        )
-        val sessionId = workoutDao.insertSession(session)
+        database.withTransaction {
+            val session = WorkoutSession(
+                workoutName = workoutName,
+                startTime = System.currentTimeMillis(),
+                endTime = 0
+            )
+            val sessionId = workoutDao.insertSession(session)
 
-        val setLogsToInsert = mutableListOf<WorkoutSetLog>()
-        for (exercise in initialExercises) {
-            val numSets = if (exercise.targetSets > 0) exercise.targetSets else 1
-            // Look for sets completed in previous workout sessions to preserve progressive overload
-            val prevCompletedSets = workoutDao.getPreviousCompletedSetsForExercise(exercise.id, sessionId)
-            val mostRecentSessionId = prevCompletedSets.firstOrNull()?.sessionId
-            val lastSessionSets = if (mostRecentSessionId != null) {
-                prevCompletedSets.filter { it.sessionId == mostRecentSessionId }.sortedBy { it.setNumber }
-            } else {
-                emptyList()
-            }
+            val setLogsToInsert = mutableListOf<WorkoutSetLog>()
+            for (exercise in initialExercises) {
+                val numSets = if (exercise.targetSets > 0) exercise.targetSets else 1
+                // Look for sets completed in previous workout sessions to preserve progressive overload
+                val prevCompletedSets = workoutDao.getPreviousCompletedSetsForExercise(exercise.id, sessionId)
+                val mostRecentSessionId = prevCompletedSets.firstOrNull()?.sessionId
+                val lastSessionSets = if (mostRecentSessionId != null) {
+                    prevCompletedSets.filter { it.sessionId == mostRecentSessionId }.sortedBy { it.setNumber }
+                } else {
+                    emptyList()
+                }
 
-            for (setIndex in 1..numSets) {
-                val isDist = exercise.isDistanceBased()
-                val isTime = exercise.isTimeBased()
-                val isBw = exercise.isBodyweightBased()
+                for (setIndex in 1..numSets) {
+                    val isDist = exercise.isDistanceBased()
+                    val isTime = exercise.isTimeBased()
+                    val isBw = exercise.isBodyweightBased()
 
-                val defDist = if (isDist) parseDistanceMeters(exercise.targetReps, setIndex) else null
-                val defTime = if (isTime) parseTimeSeconds(exercise.targetReps, setIndex) else null
-                val defReps = if (!isDist && !isTime) parseDefaultReps(exercise.targetReps, setIndex) else 0
+                    val defDist = if (isDist) parseDistanceMeters(exercise.targetReps, setIndex) else null
+                    val defTime = if (isTime) parseTimeSeconds(exercise.targetReps, setIndex) else null
+                    val defReps = if (!isDist && !isTime) parseDefaultReps(exercise.targetReps, setIndex) else 0
 
-                val matchingPrev = lastSessionSets.firstOrNull { it.setNumber == setIndex }
-                    ?: lastSessionSets.lastOrNull()
+                    val matchingPrev = lastSessionSets.firstOrNull { it.setNumber == setIndex }
+                        ?: lastSessionSets.lastOrNull()
 
-                val initialWeight = if (matchingPrev != null && !isBw) {
-                    matchingPrev.weightKg
-                } else 0f
+                    val initialWeight = if (matchingPrev != null && !isBw) {
+                        matchingPrev.weightKg
+                    } else 0f
 
-                val initialReps = if (matchingPrev != null && matchingPrev.reps > 0) {
-                    matchingPrev.reps
-                } else defReps
+                    val initialReps = if (matchingPrev != null && matchingPrev.reps > 0) {
+                        matchingPrev.reps
+                    } else defReps
 
-                val initialDist = if (isDist && matchingPrev != null && matchingPrev.distanceMeters != null) {
-                    matchingPrev.distanceMeters
-                } else defDist
+                    val initialDist = if (isDist && matchingPrev != null && matchingPrev.distanceMeters != null) {
+                        matchingPrev.distanceMeters
+                    } else defDist
 
-                val initialTime = if (isTime && matchingPrev != null && matchingPrev.timeSeconds != null) {
-                    matchingPrev.timeSeconds
-                } else defTime
+                    val initialTime = if (isTime && matchingPrev != null && matchingPrev.timeSeconds != null) {
+                        matchingPrev.timeSeconds
+                    } else defTime
 
-                setLogsToInsert.add(
-                    WorkoutSetLog(
-                        sessionId = sessionId,
-                        exerciseId = exercise.id,
-                        setNumber = setIndex,
-                        weightKg = initialWeight,
-                        reps = initialReps,
-                        timeSeconds = initialTime,
-                        distanceMeters = initialDist,
-                        rir = parseDefaultRir(exercise.rir, setIndex),
-                        isCompleted = false,
-                        timestamp = System.currentTimeMillis()
+                    setLogsToInsert.add(
+                        WorkoutSetLog(
+                            sessionId = sessionId,
+                            exerciseId = exercise.id,
+                            setNumber = setIndex,
+                            weightKg = initialWeight,
+                            reps = initialReps,
+                            timeSeconds = initialTime,
+                            distanceMeters = initialDist,
+                            rir = parseDefaultRir(exercise.rir, setIndex),
+                            isCompleted = false,
+                            timestamp = System.currentTimeMillis()
+                        )
                     )
-                )
+                }
             }
-        }
-        if (setLogsToInsert.isNotEmpty()) {
-            workoutDao.insertSetLogs(setLogsToInsert)
-        }
+            if (setLogsToInsert.isNotEmpty()) {
+                workoutDao.insertSetLogs(setLogsToInsert)
+            }
 
-        sessionId
+            sessionId
+        }
     }
 
     fun parseDistanceMeters(repsString: String, setIndex: Int = 1): Float {
@@ -422,6 +425,10 @@ class WorkoutRepository(
         }
     }
 
+    suspend fun deleteWorkoutSession(session: WorkoutSession) = withContext(Dispatchers.IO) {
+        workoutDao.deleteSession(session)
+    }
+
     suspend fun getPreviousCompletedSets(exerciseId: Long, currentSessionId: Long): List<WorkoutSetLog> = withContext(Dispatchers.IO) {
         workoutDao.getPreviousCompletedSetsForExercise(exerciseId, currentSessionId)
     }
@@ -436,21 +443,23 @@ class WorkoutRepository(
         includeWarmupAndMobility: Boolean = false,
         initialWorkouts: List<Pair<String, String>> = emptyList()
     ): Long = withContext(Dispatchers.IO) {
-        val validWorkouts = initialWorkouts.map { it.second.trim() }.filter { it.isNotBlank() }
-        val workoutsRawStr = validWorkouts.joinToString(",")
-        val plan = WorkoutPlan(
-            name = name,
-            description = description,
-            createdAt = System.currentTimeMillis(),
-            isActive = true,
-            workoutsRaw = workoutsRawStr
-        )
-        val id = workoutPlanDao.insertPlan(plan)
-        workoutPlanDao.setActivePlan(id)
+        database.withTransaction {
+            val validWorkouts = initialWorkouts.map { it.second.trim() }.filter { it.isNotBlank() }
+            val workoutsRawStr = validWorkouts.joinToString(",")
+            val plan = WorkoutPlan(
+                name = name,
+                description = description,
+                createdAt = System.currentTimeMillis(),
+                isActive = true,
+                workoutsRaw = workoutsRawStr
+            )
+            val id = workoutPlanDao.insertPlan(plan)
+            workoutPlanDao.setActivePlan(id)
 
-        // As requested by user: No exercises are created automatically. The new plan starts completely empty.
+            // As requested by user: No exercises are created automatically. The new plan starts completely empty.
 
-        id
+            id
+        }
     }
 
     suspend fun setActivePlan(planId: Long) = withContext(Dispatchers.IO) {
@@ -458,51 +467,79 @@ class WorkoutRepository(
     }
 
     suspend fun duplicatePlan(sourcePlan: WorkoutPlan): Long = withContext(Dispatchers.IO) {
-        val newPlan = WorkoutPlan(
-            name = "${sourcePlan.name} (Kopia)",
-            description = sourcePlan.description,
-            createdAt = System.currentTimeMillis(),
-            isActive = false,
-            workoutsRaw = sourcePlan.workoutsRaw
-        )
-        val newPlanId = workoutPlanDao.insertPlan(newPlan)
-        val sourceExercises = exerciseDao.getAllExercisesList().filter {
-            it.planId == sourcePlan.id || (sourcePlan.id == 1L && it.planId == 0L)
+        database.withTransaction {
+            val newPlan = WorkoutPlan(
+                name = "${sourcePlan.name} (Kopia)",
+                description = sourcePlan.description,
+                createdAt = System.currentTimeMillis(),
+                isActive = false,
+                workoutsRaw = sourcePlan.workoutsRaw
+            )
+            val newPlanId = workoutPlanDao.insertPlan(newPlan)
+            val sourceExercises = exerciseDao.getAllExercisesList().filter {
+                it.planId == sourcePlan.id || (sourcePlan.id == 1L && it.planId == 0L)
+            }
+            val duplicatedExercises = sourceExercises.map { ex ->
+                ex.copy(id = 0, planId = newPlanId)
+            }
+            if (duplicatedExercises.isNotEmpty()) {
+                exerciseDao.insertAll(duplicatedExercises)
+            }
+            newPlanId
         }
-        val duplicatedExercises = sourceExercises.map { ex ->
-            ex.copy(id = 0, planId = newPlanId)
-        }
-        if (duplicatedExercises.isNotEmpty()) {
-            exerciseDao.insertAll(duplicatedExercises)
-        }
-        newPlanId
     }
 
     suspend fun deletePlan(plan: WorkoutPlan) = withContext(Dispatchers.IO) {
-        workoutPlanDao.deletePlan(plan)
-        exerciseDao.deleteExercisesByPlanId(plan.id)
-        val remaining = workoutPlanDao.getAllPlansList()
-        if (remaining.isNotEmpty()) {
-            workoutPlanDao.setActivePlan(remaining.first().id)
-        } else {
-            val freshDefault = WorkoutPlan(
-                name = "Nowy Plan Treningowy",
-                description = "Czysty plan treningowy",
-                createdAt = System.currentTimeMillis(),
-                isActive = true,
-                workoutsRaw = "Trening A,Trening B,Trening C"
-            )
-            val newId = workoutPlanDao.insertPlan(freshDefault)
-            workoutPlanDao.setActivePlan(newId)
+        database.withTransaction {
+            // For any exercises belonging to this plan, check if they have recorded set logs in history.
+            // If they do, archive them (planId = -1L) to prevent CASCADE deletion of historical logs.
+            // If they have no logs, safely delete them.
+            val planExercises = exerciseDao.getAllExercisesList().filter { it.planId == plan.id }
+            for (ex in planExercises) {
+                if (workoutDao.getSetCountForExerciseDirect(ex.id) > 0) {
+                    exerciseDao.updateExercise(ex.copy(planId = -1L))
+                } else {
+                    exerciseDao.deleteExercise(ex)
+                }
+            }
+
+            workoutPlanDao.deletePlan(plan)
+
+            val remaining = workoutPlanDao.getAllPlansList()
+            if (remaining.isNotEmpty()) {
+                workoutPlanDao.setActivePlan(remaining.first().id)
+            } else {
+                val freshDefault = WorkoutPlan(
+                    name = "Nowy Plan Treningowy",
+                    description = "Czysty plan treningowy",
+                    createdAt = System.currentTimeMillis(),
+                    isActive = true,
+                    workoutsRaw = "Trening A,Trening B,Trening C"
+                )
+                val newId = workoutPlanDao.insertPlan(freshDefault)
+                workoutPlanDao.setActivePlan(newId)
+            }
         }
     }
 
     suspend fun deleteWorkoutFromPlan(plan: WorkoutPlan, workoutSection: String) = withContext(Dispatchers.IO) {
-        val currentList = plan.workoutsRaw.split(",").map { it.trim() }.filter { it.isNotBlank() }
-        val updatedList = currentList.filterNot { it.equals(workoutSection, ignoreCase = true) }
-        val updatedPlan = plan.copy(workoutsRaw = updatedList.joinToString(","))
-        workoutPlanDao.updatePlan(updatedPlan)
-        exerciseDao.deleteExercisesBySectionAndPlanId(workoutSection, plan.id)
+        database.withTransaction {
+            val currentList = plan.workoutsRaw.split(",").map { it.trim() }.filter { it.isNotBlank() }
+            val updatedList = currentList.filterNot { it.equals(workoutSection, ignoreCase = true) }
+            val updatedPlan = plan.copy(workoutsRaw = updatedList.joinToString(","))
+            workoutPlanDao.updatePlan(updatedPlan)
+
+            val sectionExercises = exerciseDao.getAllExercisesList().filter {
+                it.planId == plan.id && it.section.equals(workoutSection, ignoreCase = true)
+            }
+            for (ex in sectionExercises) {
+                if (workoutDao.getSetCountForExerciseDirect(ex.id) > 0) {
+                    exerciseDao.updateExercise(ex.copy(planId = -1L))
+                } else {
+                    exerciseDao.deleteExercise(ex)
+                }
+            }
+        }
     }
 
     suspend fun updatePlan(plan: WorkoutPlan) = withContext(Dispatchers.IO) {
@@ -510,7 +547,18 @@ class WorkoutRepository(
     }
 
     suspend fun deleteCategory(section: String) = withContext(Dispatchers.IO) {
-        exerciseDao.deleteExercisesBySection(section)
+        database.withTransaction {
+            val sectionExercises = exerciseDao.getAllExercisesList().filter {
+                it.section.equals(section, ignoreCase = true)
+            }
+            for (ex in sectionExercises) {
+                if (workoutDao.getSetCountForExerciseDirect(ex.id) > 0) {
+                    exerciseDao.updateExercise(ex.copy(planId = -1L))
+                } else {
+                    exerciseDao.deleteExercise(ex)
+                }
+            }
+        }
     }
 
     suspend fun createCustomExercise(exercise: Exercise): Long = withContext(Dispatchers.IO) {
@@ -518,15 +566,40 @@ class WorkoutRepository(
     }
 
     suspend fun deleteExercise(exercise: Exercise) = withContext(Dispatchers.IO) {
-        exerciseDao.deleteExercise(exercise)
+        database.withTransaction {
+            if (workoutDao.getSetCountForExerciseDirect(exercise.id) > 0) {
+                // Exercise has historical logs in workout_set_logs!
+                // To prevent SQLite CASCADE foreign key deletion of history, archive it (planId = -1L)
+                exerciseDao.updateExercise(exercise.copy(planId = -1L))
+            } else {
+                exerciseDao.deleteExercise(exercise)
+            }
+        }
     }
 
     suspend fun deleteExercises(exercises: List<Exercise>) = withContext(Dispatchers.IO) {
-        exerciseDao.deleteExercises(exercises)
+        database.withTransaction {
+            for (ex in exercises) {
+                if (workoutDao.getSetCountForExerciseDirect(ex.id) > 0) {
+                    exerciseDao.updateExercise(ex.copy(planId = -1L))
+                } else {
+                    exerciseDao.deleteExercise(ex)
+                }
+            }
+        }
     }
 
     suspend fun deleteExerciseById(id: Long) = withContext(Dispatchers.IO) {
-        exerciseDao.deleteExerciseById(id)
+        database.withTransaction {
+            val ex = exerciseDao.getExerciseByIdDirect(id)
+            if (ex != null) {
+                if (workoutDao.getSetCountForExerciseDirect(id) > 0) {
+                    exerciseDao.updateExercise(ex.copy(planId = -1L))
+                } else {
+                    exerciseDao.deleteExercise(ex)
+                }
+            }
+        }
     }
 
     suspend fun insertBodyMeasurement(measurement: BodyMeasurement): Long = withContext(Dispatchers.IO) {

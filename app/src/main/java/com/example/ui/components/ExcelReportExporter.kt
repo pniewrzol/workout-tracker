@@ -3,7 +3,14 @@ package com.example.ui.components
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import android.widget.Toast
 import androidx.core.content.FileProvider
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import com.example.data.model.BodyMeasurement
 import com.example.data.model.Exercise
 import com.example.data.model.WorkoutSession
@@ -16,13 +23,78 @@ import java.util.Locale
 
 object ExcelReportExporter {
 
-    private fun escapeCsv(value: Any?): String {
+    private const val TAG = "ExcelReportExporter"
+
+    /**
+     * Bezpieczne escapowanie pól CSV z ochroną przed CSV/Formula Injection (CWE-1236).
+     *
+     * Strategia bezpieczeństwa:
+     * 1. Wartości liczbowe (Number) są zapisywane bezpośrednio, bez modyfikacji.
+     * 2. Dla wartości tekstowych:
+     *    - Wykrywa potencjalne formuły zaczynające się od: '=', '+', '-', '@', '|', '%'
+     *      (również gdy są poprzedzone spacjami lub znakami kontrolnymi, np. \t, \r, \n).
+     *    - Jeśli tekst nie jest czystą liczbą (np. "+2" to liczba, ale "+cmd" lub "=1+1" to formuła),
+     *      zostaje poprzedzony pojedynczym cudzysłowem/apostrofem (''). W arkuszach kalkulacyjnych
+     *      (Excel, LibreOffice, Google Sheets) apostrof instruuje silnik arkusza, by traktował komórkę
+     *      ściśle jako tekst dosłowny, zapobiegając wykonaniu kodu/makra.
+     * 3. Zgodność z RFC 4180 i separatorem średnika (;):
+     *    - Podwaja wewnętrzne cudzysłowy (" -> "").
+     *    - Zamyka pole w cudzysłowach ("..."), jeśli zawiera średnik, przecinek, cudzysłów, znak nowej linii
+     *      lub jeśli zostało zneutralizowane apostrofem.
+     *
+     * Ograniczenia strategii:
+     * - W arkuszach innych niż Excel/Calc/Sheets pojedynczy apostrof może być widoczny w edycji komórki,
+     *   jednak jest to powszechnie akceptowany standard branżowy ochrony danych w CSV.
+     */
+    fun escapeCsv(value: Any?): String {
         if (value == null) return ""
-        val str = value.toString().replace("\"", "\"\"")
-        return if (str.contains(";") || str.contains("\n") || str.contains("\"")) {
-            "\"$str\""
+
+        // Zachowaj typy liczbowe bez modyfikacji
+        if (value is Number) {
+            return value.toString()
+        }
+
+        val rawStr = value.toString()
+        if (rawStr.isEmpty()) return ""
+
+        // Sprawdź, czy tekst po usunięciu białych znaków i znaków kontrolnych zaczyna się od znaku formuły
+        val trimmed = rawStr.trimStart { it.isWhitespace() || it.code < 32 }
+        val isPotentialFormula = trimmed.isNotEmpty() && when (trimmed[0]) {
+            '=', '+', '-', '@', '|', '%' -> true
+            else -> false
+        }
+
+        // Sprawdź, czy to legalna liczba (np. "-5", "+12.5", "-0.75") - jeśli tak, to nie jest to niebezpieczna formuła
+        val isPureNumber = isPotentialFormula && trimmed.toDoubleOrNull() != null
+
+        val safeText = if (isPotentialFormula && !isPureNumber) {
+            // Zabezpieczenie apostrofem przed interpretacją jako formuła
+            "'$rawStr"
         } else {
-            str
+            rawStr
+        }
+
+        // Standardowe escapowanie CSV (RFC 4180)
+        val escapedQuotes = safeText.replace("\"", "\"\"")
+        val needsQuotes = escapedQuotes.contains(";") ||
+                escapedQuotes.contains(",") ||
+                escapedQuotes.contains("\n") ||
+                escapedQuotes.contains("\r") ||
+                escapedQuotes.contains("\"") ||
+                (isPotentialFormula && !isPureNumber)
+
+        return if (needsQuotes) {
+            "\"$escapedQuotes\""
+        } else {
+            escapedQuotes
+        }
+    }
+
+    private fun formatTonnage(tonnage: Double): String {
+        return if (tonnage % 1.0 == 0.0) {
+            tonnage.toLong().toString()
+        } else {
+            String.format(Locale.US, "%.1f", tonnage)
         }
     }
 
@@ -35,17 +107,18 @@ object ExcelReportExporter {
         allMeasurements: List<BodyMeasurement>,
         cutoffTime: Long
     ) {
-        val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
-        val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-        val generatedDateStr = dateFormat.format(Date())
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
+            val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+            val generatedDateStr = dateFormat.format(Date())
 
-        val exerciseMap = allExercises.associateBy { it.id }
+            val exerciseMap = allExercises.associateBy { it.id }
 
-        // Filter sessions and measurements in period
-        val periodSessions = sessions.filter { it.isCompleted && it.startTime >= cutoffTime }.sortedByDescending { it.startTime }
-        val periodSessionIds = periodSessions.map { it.id }.toSet()
-        val periodSets = allSets.filter { it.isCompleted && it.sessionId in periodSessionIds }
-        val periodMeasurements = allMeasurements.filter { it.timestamp >= cutoffTime }.sortedBy { it.timestamp }
+            // Filter sessions and measurements in period
+            val periodSessions = sessions.filter { it.isCompleted && it.startTime >= cutoffTime }.sortedByDescending { it.startTime }
+            val periodSessionIds = periodSessions.map { it.id }.toSet()
+            val periodSets = allSets.filter { it.isCompleted && it.sessionId in periodSessionIds }
+            val periodMeasurements = allMeasurements.filter { it.timestamp >= cutoffTime }.sortedBy { it.timestamp }
 
         // Best set per exercise
         val bestSetsMap = mutableMapOf<Long, WorkoutSetLog>()
@@ -81,7 +154,7 @@ object ExcelReportExporter {
         if (warmupPeriodSessions.isNotEmpty()) {
             csvBuilder.append("Sesje pomocnicze (rozgrzewka/mobility);${warmupPeriodSessions.size};sesji\n")
         }
-        csvBuilder.append("Łączny tonaż siłowy;${reportData.totalTonnageKg};kg\n")
+        csvBuilder.append("Łączny tonaż siłowy;${formatTonnage(reportData.totalTonnageKg.toDouble())};kg\n")
         csvBuilder.append("Łączny czas treningów;${reportData.totalTrainingMinutes};min\n")
         csvBuilder.append("Łączna liczba serii;${reportData.totalSetsCount};serii\n")
         csvBuilder.append("Łączna liczba powtórzeń;${reportData.totalRepsCount};powtórzeń\n")
@@ -94,13 +167,13 @@ object ExcelReportExporter {
         for ((name, sessList) in groupedByWorkoutName) {
             val sIds = sessList.map { it.id }.toSet()
             val wSets = periodSets.filter { it.sessionId in sIds }
-            val wTonnage = wSets.sumOf { (it.weightKg * it.reps).toLong() }
+            val wTonnage = wSets.sumOf { it.weightKg.toDouble() * it.reps }
             val totalMin = sessList.sumOf { s ->
                 val end = if (s.endTime > s.startTime) s.endTime else s.startTime
                 ((end - s.startTime) / 60000).coerceAtLeast(1)
             }
             val avgMin = if (sessList.isNotEmpty()) totalMin / sessList.size else 0
-            csvBuilder.append("${escapeCsv(name)};${sessList.size};$wTonnage;${wSets.size};$avgMin\n")
+            csvBuilder.append("${escapeCsv(name)};${sessList.size};${formatTonnage(wTonnage)};${wSets.size};$avgMin\n")
         }
         csvBuilder.append("\n")
 
@@ -118,7 +191,7 @@ object ExcelReportExporter {
                 val exCode = ex?.code ?: ""
                 val isBest = set.id == bestSetsMap[set.exerciseId]?.id
                 val bestMarker = if (isBest) "TAK (PR)" else "Nie"
-                val setTonnage = (set.weightKg * set.reps).toLong()
+                val setTonnage = set.weightKg.toDouble() * set.reps
 
                 csvBuilder.append("${dateFormat.format(Date(session.startTime))};")
                 csvBuilder.append("${timeFormat.format(Date(session.startTime))};")
@@ -126,9 +199,9 @@ object ExcelReportExporter {
                 csvBuilder.append("${escapeCsv(exName)};")
                 csvBuilder.append("${escapeCsv(exCode)};")
                 csvBuilder.append("${set.setNumber};")
-                csvBuilder.append("${set.weightKg};")
+                csvBuilder.append("${formatTonnage(set.weightKg.toDouble())};")
                 csvBuilder.append("${set.reps};")
-                csvBuilder.append("$setTonnage;")
+                csvBuilder.append("${formatTonnage(setTonnage)};")
                 csvBuilder.append("${set.timeSeconds ?: ""};")
                 csvBuilder.append("${set.distanceMeters ?: ""};")
                 csvBuilder.append("$bestMarker;")
@@ -159,18 +232,19 @@ object ExcelReportExporter {
         csvBuilder.append("ZAANGAŻOWANE GRUPY MIĘŚNIOWE\n")
         csvBuilder.append("Grupa Mięśniowa;Liczba Serii;Łączny Tonaż (kg);Poziom Aktywności\n")
         val muscleActivities = calculateMuscleActivities(allExercises, periodSets, 3650)
-        for ((m, act) in muscleActivities) {
+        val sortedMuscles = muscleActivities.values.sortedByDescending { it.setsCount }
+        for (act in sortedMuscles) {
             val levelDesc = when (act.level) {
-                4 -> "Bardzo wysoka (16+ serii)"
+                4 -> "Maksymalna (16+ serii)"
                 3 -> "Wysoka (10-15 serii)"
                 2 -> "Umiarkowana (5-9 serii)"
                 1 -> "Wstępna (1-4 serii)"
                 else -> "Brak"
             }
-            csvBuilder.append("${escapeCsv(m.displayName)};${act.setsCount};${act.totalTonnage.toLong()};$levelDesc\n")
+            csvBuilder.append("${escapeCsv(act.muscle.displayName)};${act.setsCount};${formatTonnage(act.totalTonnage.toDouble())};$levelDesc\n")
         }
 
-        // Save file to cache and share
+        // Save file to cache and share (in IO dispatcher)
         try {
             val reportsDir = File(context.cacheDir, "reports")
             if (!reportsDir.exists()) reportsDir.mkdirs()
@@ -193,9 +267,15 @@ object ExcelReportExporter {
                 putExtra(Intent.EXTRA_SUBJECT, "Raport Treningowy Excel - $generatedDateStr")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(shareIntent, "Otwórz lub Udostępnij Raport w Excel / Arkusze"))
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                context.startActivity(Intent.createChooser(shareIntent, "Otwórz lub Udostępnij Raport w Excel / Arkusze"))
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.w(TAG, "Błąd podczas zapisywania lub udostępniania raportu CSV: ${e.message}")
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                Toast.makeText(context, "Nie udało się wyeksportować raportu CSV. Spróbuj ponownie.", Toast.LENGTH_LONG).show()
+            }
+        }
         }
     }
 }

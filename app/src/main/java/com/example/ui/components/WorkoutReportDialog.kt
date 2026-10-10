@@ -147,13 +147,12 @@ fun buildReportData(
         ((end - session.startTime) / 60000).coerceAtLeast(1)
     }
 
-    var totalTonnageKg = 0L
-    var totalRepsCount = 0
+    val totalTonnageDouble = validSets.sumOf { it.weightKg.toDouble() * it.reps }
+    val totalTonnageKg = Math.round(totalTonnageDouble)
+    val totalRepsCount = validSets.sumOf { it.reps }
     val exerciseStatsMap = mutableMapOf<Long, MutableList<WorkoutSetLog>>()
 
     for (set in validSets) {
-        totalTonnageKg += (set.weightKg * set.reps).toLong()
-        totalRepsCount += set.reps
         exerciseStatsMap.getOrPut(set.exerciseId) { mutableListOf() }.add(set)
     }
 
@@ -163,7 +162,7 @@ fun buildReportData(
     // Sessions breakdown
     val sessionItems = validSessions.map { session ->
         val sSets = validSets.filter { it.sessionId == session.id }
-        val sTonnage = sSets.sumOf { (it.weightKg * it.reps).toLong() }
+        val sTonnage = Math.round(sSets.sumOf { it.weightKg.toDouble() * it.reps })
         val durationMin = (( (session.endTime ?: session.startTime) - session.startTime) / 60000).coerceAtLeast(1)
         WorkoutSessionReportItem(
             id = session.id,
@@ -180,7 +179,7 @@ fun buildReportData(
     val topExercises = exerciseStatsMap.mapNotNull { (exId, setsList) ->
         val ex = exerciseMap[exId] ?: return@mapNotNull null
         val maxW = setsList.maxOfOrNull { it.weightKg } ?: 0f
-        val exTonnage = setsList.sumOf { (it.weightKg * it.reps).toLong() }
+        val exTonnage = Math.round(setsList.sumOf { it.weightKg.toDouble() * it.reps })
         TopExerciseReportItem(
             exerciseName = ex.name,
             maxWeightKg = maxW,

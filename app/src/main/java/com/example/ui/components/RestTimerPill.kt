@@ -1,10 +1,6 @@
 package com.example.ui.components
 
 import android.content.Context
-import android.os.Build
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -73,13 +69,6 @@ fun RestTimerPill(
         label.contains("ćwiczen", ignoreCase = true) || label.contains("seri", ignoreCase = true)
     }
     val timerAccent = if (isExerciseTimer) ElectricCyan else AthleticOrange
-
-    LaunchedEffect(remainingSeconds, isVisible) {
-        if (isVisible && totalSeconds > 0 && remainingSeconds == 0) {
-            triggerVibration(context)
-            onFinishedOrDismissed()
-        }
-    }
 
     AnimatedVisibility(
         visible = isVisible && remainingSeconds > 0,
@@ -223,21 +212,4 @@ fun RestTimerPill(
         onFinishedOrDismissed = onFinishedOrDismissed,
         modifier = modifier
     )
-}
-
-private fun triggerVibration(context: Context) {
-    try {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-            val vibrator = vibratorManager?.defaultVibrator
-            vibrator?.vibrate(VibrationEffect.createOneShot(400, VibrationEffect.DEFAULT_AMPLITUDE))
-        } else {
-            @Suppress("DEPRECATION")
-            val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-            @Suppress("DEPRECATION")
-            vibrator?.vibrate(400)
-        }
-    } catch (e: Exception) {
-        // Vibrator not available or permission issue
-    }
 }
