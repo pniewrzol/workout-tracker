@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.FormatListBulleted
@@ -85,6 +86,7 @@ fun WorkoutPlanManagerDialog(
     onCreateExercise: (Exercise) -> Unit,
     onDeleteExercise: ((Exercise) -> Unit)? = null,
     onDeleteWorkoutCategory: ((WorkoutPlan, String) -> Unit)? = null,
+    onDuplicatePlan: ((WorkoutPlan) -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     var showCreatePlanDialog by remember { mutableStateOf(false) }
@@ -275,6 +277,20 @@ fun WorkoutPlanManagerDialog(
                                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                                         ) {
                                             Text("Wybierz", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                                        }
+                                    }
+
+                                    if (onDuplicatePlan != null) {
+                                        IconButton(
+                                            onClick = { onDuplicatePlan(plan) },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.ContentCopy,
+                                                contentDescription = "Duplikuj plan",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
                                         }
                                     }
 

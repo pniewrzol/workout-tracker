@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Compare
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.PhotoCamera
@@ -78,6 +79,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
@@ -105,6 +107,7 @@ fun BodyMeasurementsScreen(
     measurementsAsc: List<BodyMeasurement>,
     getChartPoints: (List<BodyMeasurement>, MeasurementMetric) -> List<ChartPoint>,
     onAddMeasurement: (BodyMeasurement) -> Unit,
+    onUpdateMeasurement: (BodyMeasurement) -> Unit = {},
     onDeleteMeasurement: (BodyMeasurement) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
@@ -112,6 +115,7 @@ fun BodyMeasurementsScreen(
     BackHandler { onBack() }
 
     var showAddDialog by remember { mutableStateOf(false) }
+    var editingMeasurement by remember { mutableStateOf<BodyMeasurement?>(null) }
     var showCompareDialog by remember { mutableStateOf(false) }
     var viewingPhotoUri by remember { mutableStateOf<Pair<String, String>?>(null) } // uri to title
     var selectedMetric by remember { mutableStateOf(MeasurementMetric.WEIGHT) }
@@ -415,6 +419,7 @@ fun BodyMeasurementsScreen(
                 items(measurements, key = { it.id }) { measurement ->
                     MeasurementLogCard(
                         measurement = measurement,
+                        onEdit = { editingMeasurement = measurement },
                         onDelete = { onDeleteMeasurement(measurement) },
                         onPhotoClick = { uri, title -> viewingPhotoUri = uri to title }
                     )
@@ -424,11 +429,23 @@ fun BodyMeasurementsScreen(
     }
 
     if (showAddDialog) {
-        AddMeasurementDialog(
+        AddOrEditMeasurementDialog(
+            initialMeasurement = null,
             onDismiss = { showAddDialog = false },
             onSave = { measurement ->
                 onAddMeasurement(measurement)
                 showAddDialog = false
+            }
+        )
+    }
+
+    editingMeasurement?.let { toEdit ->
+        AddOrEditMeasurementDialog(
+            initialMeasurement = toEdit,
+            onDismiss = { editingMeasurement = null },
+            onSave = { updated ->
+                onUpdateMeasurement(updated)
+                editingMeasurement = null
             }
         )
     }
@@ -452,6 +469,7 @@ fun BodyMeasurementsScreen(
 @Composable
 fun MeasurementLogCard(
     measurement: BodyMeasurement,
+    onEdit: () -> Unit,
     onDelete: () -> Unit,
     onPhotoClick: (String, String) -> Unit
 ) {
@@ -459,7 +477,9 @@ fun MeasurementLogCard(
         .format(Date(measurement.timestamp))
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onEdit() },
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
@@ -470,7 +490,10 @@ fun MeasurementLogCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Icon(
                         imageVector = Icons.Default.CalendarToday,
                         contentDescription = null,
@@ -481,20 +504,42 @@ fun MeasurementLogCard(
                     Text(
                         text = dateStr,
                         style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                IconButton(
-                    onClick = onDelete,
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Usuń pomiar",
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(18.dp)
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = onEdit,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .testTag("edit_measurement_${measurement.id}")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edytuj pomiar",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .testTag("delete_measurement_${measurement.id}")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Usuń pomiar",
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
 
@@ -670,26 +715,33 @@ fun saveUriToPrivateMeasurementFile(context: Context, uri: Uri, prefix: String):
 }
 
 @Composable
-fun AddMeasurementDialog(
+fun AddOrEditMeasurementDialog(
+    initialMeasurement: BodyMeasurement? = null,
     onDismiss: () -> Unit,
     onSave: (BodyMeasurement) -> Unit
 ) {
+    val isEditing = initialMeasurement != null
     val context = LocalContext.current
 
-    var weightText by remember { mutableStateOf("") }
-    var bodyFatText by remember { mutableStateOf("") }
-    var chestText by remember { mutableStateOf("") }
-    var waistText by remember { mutableStateOf("") }
-    var bicepsText by remember { mutableStateOf("") }
-    var hipsText by remember { mutableStateOf("") }
-    var thighsText by remember { mutableStateOf("") }
-    var calvesText by remember { mutableStateOf("") }
-    var shouldersText by remember { mutableStateOf("") }
-    var notesText by remember { mutableStateOf("") }
+    val formatFloat: (Float?) -> String = { num ->
+        if (num == null) "" else if (num % 1f == 0f) num.toInt().toString() else num.toString()
+    }
 
-    var frontPhotoPath by remember { mutableStateOf<String?>(null) }
-    var sidePhotoPath by remember { mutableStateOf<String?>(null) }
-    var backPhotoPath by remember { mutableStateOf<String?>(null) }
+    var weightText by remember { mutableStateOf(formatFloat(initialMeasurement?.weightKg)) }
+    var bodyFatText by remember { mutableStateOf(formatFloat(initialMeasurement?.bodyFatPercentage)) }
+    var chestText by remember { mutableStateOf(formatFloat(initialMeasurement?.chestCm)) }
+    var waistText by remember { mutableStateOf(formatFloat(initialMeasurement?.waistCm)) }
+    var bicepsText by remember { mutableStateOf(formatFloat(initialMeasurement?.bicepsCm)) }
+    var hipsText by remember { mutableStateOf(formatFloat(initialMeasurement?.hipsCm)) }
+    var thighsText by remember { mutableStateOf(formatFloat(initialMeasurement?.thighsCm)) }
+    var calvesText by remember { mutableStateOf(formatFloat(initialMeasurement?.calvesCm)) }
+    var shouldersText by remember { mutableStateOf(formatFloat(initialMeasurement?.shouldersCm)) }
+    var notesText by remember { mutableStateOf(initialMeasurement?.notes ?: "") }
+    var measurementTimestamp by remember { mutableStateOf(initialMeasurement?.timestamp ?: System.currentTimeMillis()) }
+
+    var frontPhotoPath by remember { mutableStateOf(initialMeasurement?.frontPhotoUri) }
+    var sidePhotoPath by remember { mutableStateOf(initialMeasurement?.sidePhotoUri) }
+    var backPhotoPath by remember { mutableStateOf(initialMeasurement?.backPhotoUri) }
 
     val frontLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let { frontPhotoPath = saveUriToPrivateMeasurementFile(context, it, "front") }
@@ -704,7 +756,19 @@ fun AddMeasurementDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text("Dodaj Pomiary Sylwetki", fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = if (isEditing) Icons.Default.Edit else Icons.Default.Add,
+                    contentDescription = null,
+                    tint = AthleticOrange,
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (isEditing) "Edytuj Pomiar Sylwetki" else "Dodaj Pomiary Sylwetki",
+                    fontWeight = FontWeight.Bold
+                )
+            }
         },
         text = {
             LazyColumn(
@@ -713,6 +777,47 @@ fun AddMeasurementDialog(
                     .height(420.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                item {
+                    val dateFormatted = SimpleDateFormat("dd MMMM yyyy, HH:mm", Locale("pl", "PL"))
+                        .format(Date(measurementTimestamp))
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarToday,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Data: $dateFormatted",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            if (isEditing) {
+                                TextButton(
+                                    onClick = { measurementTimestamp = System.currentTimeMillis() },
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                                ) {
+                                    Text("Zmień na teraz", fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Weight & Body Fat
                 item {
                     Row(
@@ -880,8 +985,8 @@ fun AddMeasurementDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    val measurement = BodyMeasurement(
-                        timestamp = System.currentTimeMillis(),
+                    val measurement = (initialMeasurement ?: BodyMeasurement()).copy(
+                        timestamp = measurementTimestamp,
                         weightKg = weightText.toFloatOrNull(),
                         bodyFatPercentage = bodyFatText.toFloatOrNull(),
                         chestCm = chestText.toFloatOrNull(),
@@ -901,7 +1006,10 @@ fun AddMeasurementDialog(
                 colors = ButtonDefaults.buttonColors(containerColor = AthleticOrange),
                 modifier = Modifier.testTag("save_measurement_button")
             ) {
-                Text("Zapisz pomiar", fontWeight = FontWeight.Bold)
+                Text(
+                    text = if (isEditing) "Zapisz zmiany" else "Zapisz pomiar",
+                    fontWeight = FontWeight.Bold
+                )
             }
         },
         dismissButton = {
@@ -909,6 +1017,18 @@ fun AddMeasurementDialog(
                 Text("Anuluj")
             }
         }
+    )
+}
+
+@Composable
+fun AddMeasurementDialog(
+    onDismiss: () -> Unit,
+    onSave: (BodyMeasurement) -> Unit
+) {
+    AddOrEditMeasurementDialog(
+        initialMeasurement = null,
+        onDismiss = onDismiss,
+        onSave = onSave
     )
 }
 

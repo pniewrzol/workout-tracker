@@ -32,8 +32,11 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -55,6 +58,8 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -91,6 +96,10 @@ fun SettingsScreen(
     onSaveBackupPassword: (String) -> Unit,
     onExportBackup: (Uri, String, (Boolean) -> Unit) -> Unit,
     onRestoreBackup: (Uri, String?, (RestoreResult) -> Unit) -> Unit,
+    timerVibrationEnabled: Boolean = true,
+    onTimerVibrationChange: (Boolean) -> Unit = {},
+    timerSoundEnabled: Boolean = true,
+    onTimerSoundChange: (Boolean) -> Unit = {},
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -262,6 +271,129 @@ fun SettingsScreen(
                             onClick = { onThemeModeChange(AppThemeMode.LIGHT) },
                             testTag = "theme_light_option"
                         )
+                    }
+                }
+            }
+
+            // Timer & Notification Card
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Timer,
+                                contentDescription = null,
+                                tint = AthleticOrange
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Timer Przerw & Powiadomienia",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Dźwięk i haptyka po zakończeniu czasu odpoczynku",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Vibration switch row
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onTimerVibrationChange(!timerVibrationEnabled) }
+                                .padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Vibration,
+                                    contentDescription = null,
+                                    tint = if (timerVibrationEnabled) AthleticOrange else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "Wibracja po zakończeniu",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = "Wyraźny impuls wibracji w kieszeni na koniec serii",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            Switch(
+                                checked = timerVibrationEnabled,
+                                onCheckedChange = onTimerVibrationChange,
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = androidx.compose.ui.graphics.Color.White,
+                                    checkedTrackColor = AthleticOrange
+                                )
+                            )
+                        }
+
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                        // Sound switch row
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onTimerSoundChange(!timerSoundEnabled) }
+                                .padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.VolumeUp,
+                                    contentDescription = null,
+                                    tint = if (timerSoundEnabled) ElectricCyan else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "Dźwięk powiadomienia (Beep)",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = "Krótki sygnał audio powiadamiający o gotowości",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            Switch(
+                                checked = timerSoundEnabled,
+                                onCheckedChange = onTimerSoundChange,
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = androidx.compose.ui.graphics.Color.White,
+                                    checkedTrackColor = ElectricCyan
+                                )
+                            )
+                        }
                     }
                 }
             }

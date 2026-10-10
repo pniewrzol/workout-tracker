@@ -43,14 +43,17 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -94,9 +97,11 @@ import com.example.data.model.WorkoutSetLog
 import com.example.ui.components.RestTimerPill
 import com.example.ui.theme.AthleticOrange
 import com.example.ui.theme.ElectricCyan
+import com.example.ui.theme.GoldPr
 import com.example.ui.theme.SuccessGreen
 import com.example.util.SupersetHelper
 import com.example.util.SupersetInfo
+import com.example.util.WorkoutMetricsCalculator
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -435,6 +440,9 @@ fun WorkoutActiveScreen(
                         val prevExerciseSets = remember(allCompletedSets, exerciseId, session.id) {
                             allCompletedSets.filter { it.exerciseId == exerciseId && it.sessionId != session.id && it.isCompleted }
                         }
+                        val maxPastWeight = remember(prevExerciseSets) {
+                            prevExerciseSets.maxOfOrNull { it.weightKg } ?: 0f
+                        }
                         val prevSessionId = prevExerciseSets.maxByOrNull { it.timestamp }?.sessionId
                         val lastCompletedSets = remember(prevExerciseSets, prevSessionId) {
                             if (prevSessionId != null) {
@@ -481,6 +489,7 @@ fun WorkoutActiveScreen(
                             exercise = exercise,
                             sets = exerciseSets,
                             previousSummary = previousSummary,
+                            maxPastWeight = maxPastWeight,
                             supersetInfo = supersetInfo,
                             onNavigateToPartner = { partnerId ->
                                 val exKeys = groupedSets.keys.toList()
@@ -537,6 +546,21 @@ fun WorkoutActiveScreen(
 
     // Finish Workout Dialog
     if (showFinishDialog) {
+        val caloriesBurned = remember(elapsedSeconds, totalVolume, completedCount) {
+            WorkoutMetricsCalculator.calculateCalories(
+                durationSeconds = elapsedSeconds,
+                totalTonnageKg = totalVolume.toFloat(),
+                completedSetsCount = completedCount
+            )
+        }
+        val (intensityText, intensityColor) = remember(elapsedSeconds, totalVolume, completedCount) {
+            WorkoutMetricsCalculator.calculateIntensity(
+                durationSeconds = elapsedSeconds,
+                totalTonnageKg = totalVolume.toFloat(),
+                completedSetsCount = completedCount
+            )
+        }
+
         AlertDialog(
             onDismissRequest = { showFinishDialog = false },
             title = {
@@ -557,7 +581,64 @@ fun WorkoutActiveScreen(
                         text = summaryMsg,
                         style = MaterialTheme.typography.bodyMedium
                     )
-                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = AthleticOrange.copy(alpha = 0.15f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Whatshot,
+                                    contentDescription = null,
+                                    tint = AthleticOrange,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "~$caloriesBurned kcal",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = AthleticOrange
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = intensityColor.copy(alpha = 0.15f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Speed,
+                                    contentDescription = null,
+                                    tint = intensityColor,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Intensywność: $intensityText",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = intensityColor
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
                         value = workoutNotes,
                         onValueChange = { workoutNotes = it },
@@ -623,6 +704,7 @@ fun ExerciseWorkoutCard(
     exercise: Exercise,
     sets: List<WorkoutSetLog>,
     previousSummary: String? = null,
+    maxPastWeight: Float = 0f,
     supersetInfo: SupersetInfo? = null,
     onNavigateToPartner: ((Long) -> Unit)? = null,
     onToggleCompleted: (WorkoutSetLog) -> Unit,
@@ -735,6 +817,36 @@ fun ExerciseWorkoutCard(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
                         )
+                        val hasSessionPr = remember(sets, maxPastWeight) {
+                            maxPastWeight > 0f && sets.any { it.isCompleted && it.weightKg > maxPastWeight }
+                        }
+                        if (hasSessionPr) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = GoldPr.copy(alpha = 0.2f),
+                                border = BorderStroke(1.dp, GoldPr)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.EmojiEvents,
+                                        contentDescription = null,
+                                        tint = GoldPr,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "PR!",
+                                        color = GoldPr,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
                     }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(

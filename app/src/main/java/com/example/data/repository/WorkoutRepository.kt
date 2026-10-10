@@ -457,6 +457,27 @@ class WorkoutRepository(
         workoutPlanDao.setActivePlan(planId)
     }
 
+    suspend fun duplicatePlan(sourcePlan: WorkoutPlan): Long = withContext(Dispatchers.IO) {
+        val newPlan = WorkoutPlan(
+            name = "${sourcePlan.name} (Kopia)",
+            description = sourcePlan.description,
+            createdAt = System.currentTimeMillis(),
+            isActive = false,
+            workoutsRaw = sourcePlan.workoutsRaw
+        )
+        val newPlanId = workoutPlanDao.insertPlan(newPlan)
+        val sourceExercises = exerciseDao.getAllExercisesList().filter {
+            it.planId == sourcePlan.id || (sourcePlan.id == 1L && it.planId == 0L)
+        }
+        val duplicatedExercises = sourceExercises.map { ex ->
+            ex.copy(id = 0, planId = newPlanId)
+        }
+        if (duplicatedExercises.isNotEmpty()) {
+            exerciseDao.insertAll(duplicatedExercises)
+        }
+        newPlanId
+    }
+
     suspend fun deletePlan(plan: WorkoutPlan) = withContext(Dispatchers.IO) {
         workoutPlanDao.deletePlan(plan)
         exerciseDao.deleteExercisesByPlanId(plan.id)

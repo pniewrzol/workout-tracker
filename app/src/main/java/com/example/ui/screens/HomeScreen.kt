@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
@@ -6,9 +8,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,6 +28,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
@@ -37,6 +43,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -61,6 +68,8 @@ import com.example.ui.theme.AthleticOrange
 import com.example.ui.theme.ElectricCyan
 import com.example.ui.theme.GoldPr
 import com.example.ui.theme.SuccessGreen
+import com.example.util.MuscleVolumeGroup
+import com.example.util.WorkoutMetricsCalculator
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -107,6 +116,7 @@ fun HomeScreen(
     onCreatePlan: (String, String, Boolean, List<Pair<String, String>>) -> Unit = { _, _, _, _ -> },
     onSetActivePlan: (Long) -> Unit = {},
     onDeletePlan: (WorkoutPlan) -> Unit = {},
+    onDuplicatePlan: (WorkoutPlan) -> Unit = {},
     onCreateCustomExercise: (Exercise) -> Unit = {},
     onDeleteExercise: (Exercise) -> Unit = {},
     onDeleteWorkoutCategory: (WorkoutPlan, String) -> Unit = { _, _ -> },
@@ -136,6 +146,15 @@ fun HomeScreen(
     val mainWorkouts = remember(completedSessions) { completedSessions.filter { it.isMainWorkout } }
     val totalWorkoutsCount = mainWorkouts.size
     val totalSetsCount = mainWorkoutCompletedSets.size
+
+    val exerciseMap = remember(allExercises) { allExercises.associateBy { it.id } }
+    val oneWeekAgo = remember { System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000L }
+    val setsLast7Days = remember(mainWorkoutCompletedSets, oneWeekAgo) {
+        mainWorkoutCompletedSets.filter { it.timestamp >= oneWeekAgo }
+    }
+    val weeklyVolumeGroups = remember(setsLast7Days, exerciseMap) {
+        WorkoutMetricsCalculator.calculateWeeklyMuscleVolume(setsLast7Days, exerciseMap)
+    }
 
     val currentPlanId = activePlan?.id ?: 1L
     val activePlanWarmups = remember(allExercises, currentPlanId) {
@@ -395,6 +414,14 @@ fun HomeScreen(
                     )
                 }
             }
+        }
+
+        // Tygodniowy Balans Partii Mięśniowych (Ostatnie 7 dni)
+        item {
+            WeeklyMuscleVolumeCard(
+                volumeGroups = weeklyVolumeGroups,
+                totalWeeklySets = setsLast7Days.size
+            )
         }
 
         // Plan Treningowy Section Header
@@ -712,6 +739,9 @@ fun HomeScreen(
             onDeletePlan = { plan ->
                 onDeletePlan(plan)
             },
+            onDuplicatePlan = { plan ->
+                onDuplicatePlan(plan)
+            },
             onCreateExercise = { ex ->
                 onCreateCustomExercise(ex)
             },
@@ -991,6 +1021,154 @@ fun WorkoutPlanCard(
                         color = if (badgeColor == GoldPr) Color.Black else Color.White,
                         maxLines = 1
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun WeeklyMuscleVolumeCard(
+    volumeGroups: List<MuscleVolumeGroup>,
+    totalWeeklySets: Int
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { isExpanded = !isExpanded },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    Surface(
+                        shape = CircleShape,
+                        color = ElectricCyan.copy(alpha = 0.15f),
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.FitnessCenter,
+                                contentDescription = null,
+                                tint = ElectricCyan,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "Tygodniowy Balans Mięśni",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Ostatnie 7 dni • Łącznie $totalWeeklySets serii",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                IconButton(onClick = { isExpanded = !isExpanded }) {
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (isExpanded) "Zwiń" else "Rozwiń"
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Mini badges row always visible
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                volumeGroups.forEach { grp ->
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = grp.statusColor.copy(alpha = 0.12f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, grp.statusColor.copy(alpha = 0.35f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = grp.name,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "${grp.setCount}",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = grp.statusColor
+                            )
+                        }
+                    }
+                }
+            }
+
+            AnimatedVisibility(visible = isExpanded) {
+                Column(modifier = Modifier.padding(top = 14.dp)) {
+                    HorizontalDivider(modifier = Modifier.padding(bottom = 12.dp))
+                    Text(
+                        text = "Wytyczne hipertrofii: 10–20 serii tygodniowo na partię",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    )
+
+                    volumeGroups.forEach { grp ->
+                        Column(modifier = Modifier.padding(vertical = 5.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = grp.name,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "${grp.setCount} serii (${grp.statusText})",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = grp.statusColor
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(7.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(grp.progress)
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(grp.statusColor)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

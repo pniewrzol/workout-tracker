@@ -74,6 +74,31 @@ class ExampleRobolectricTest {
   }
 
   @Test
+  fun `body measurement editing preserves id and updates values`() {
+    val original = BodyMeasurement(
+      id = 42L,
+      timestamp = 1700000000000L,
+      weightKg = 80.0f,
+      waistCm = 85.0f,
+      notes = "Przed redukcją"
+    )
+
+    val updated = original.copy(
+      weightKg = 78.5f,
+      waistCm = 82.0f,
+      bodyFatPercentage = 13.0f,
+      notes = "Po 4 tygodniach diety"
+    )
+
+    assertEquals(42L, updated.id)
+    assertEquals(1700000000000L, updated.timestamp)
+    assertEquals(78.5f, updated.weightKg)
+    assertEquals(82.0f, updated.waistCm)
+    assertEquals(13.0f, updated.bodyFatPercentage)
+    assertEquals("Po 4 tygodniach diety", updated.notes)
+  }
+
+  @Test
   fun `distance and time exercises are categorized correctly`() {
     val exercises = InitialWorkoutData.defaultExercises
 
@@ -258,5 +283,75 @@ class ExampleRobolectricTest {
     assertEquals(7, s2Sets[3].reps)
 
     db.close()
+  }
+
+  @Test
+  fun `WorkoutMetricsCalculator calculates realistic calories and intensities`() {
+    val calories = com.example.util.WorkoutMetricsCalculator.calculateCalories(
+        durationSeconds = 3600L, // 1 hour
+        totalTonnageKg = 12000f,
+        completedSetsCount = 20,
+        userWeightKg = 80f
+    )
+    assertTrue("Calories burned should be at least 300 kcal for 1hr heavy session", calories in 300..900)
+
+    val (intensityHigh, _) = com.example.util.WorkoutMetricsCalculator.calculateIntensity(
+        durationSeconds = 3600L,
+        totalTonnageKg = 12000f,
+        completedSetsCount = 24
+    )
+    assertEquals("Wysoka", intensityHigh)
+
+    val (intensityLow, _) = com.example.util.WorkoutMetricsCalculator.calculateIntensity(
+        durationSeconds = 1800L,
+        totalTonnageKg = 500f,
+        completedSetsCount = 4
+    )
+    assertEquals("Lekka", intensityLow)
+  }
+
+  @Test
+  fun `WorkoutMetricsCalculator aggregates weekly muscle volume accurately`() {
+    val benchPress = com.example.data.model.Exercise(
+        id = 101L,
+        section = "Trening A",
+        code = "A.1",
+        name = "Wyciskanie sztangi leżąc",
+        bodyPart = "Klatka piersiowa",
+        equipment = "Sztanga",
+        primaryMuscles = "Klatka piersiowa",
+        secondaryMuscles = "Triceps",
+        cues = "",
+        instructions = ""
+    )
+    val squat = com.example.data.model.Exercise(
+        id = 102L,
+        section = "Trening A",
+        code = "A.2",
+        name = "Przysiad ze sztangą",
+        bodyPart = "Nogi",
+        equipment = "Sztanga",
+        primaryMuscles = "Czworogłowe, pośladki",
+        secondaryMuscles = "Core",
+        cues = "",
+        instructions = ""
+    )
+    val exerciseMap = mapOf(101L to benchPress, 102L to squat)
+
+    val sets = listOf(
+        WorkoutSetLog(id = 1, sessionId = 1, exerciseId = 101L, setNumber = 1, weightKg = 80f, reps = 10),
+        WorkoutSetLog(id = 2, sessionId = 1, exerciseId = 101L, setNumber = 2, weightKg = 80f, reps = 10),
+        WorkoutSetLog(id = 3, sessionId = 1, exerciseId = 102L, setNumber = 1, weightKg = 100f, reps = 8),
+        WorkoutSetLog(id = 4, sessionId = 1, exerciseId = 102L, setNumber = 2, weightKg = 100f, reps = 8)
+    )
+
+    val volumeGroups = com.example.util.WorkoutMetricsCalculator.calculateWeeklyMuscleVolume(sets, exerciseMap)
+    val chestGroup = volumeGroups.firstOrNull { it.name == "Klatka piersiowa" }
+    val legsGroup = volumeGroups.firstOrNull { it.name == "Nogi & Pośladki" }
+
+    assertNotNull(chestGroup)
+    assertEquals(2, chestGroup?.setCount)
+    assertNotNull(legsGroup)
+    assertEquals(2, legsGroup?.setCount)
   }
 }

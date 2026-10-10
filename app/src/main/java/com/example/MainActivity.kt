@@ -139,6 +139,9 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
     val isRestTimerPaused by viewModel.isRestTimerPaused.collectAsStateWithLifecycle()
     val restTimerLabel by viewModel.restTimerLabel.collectAsStateWithLifecycle()
 
+    val timerVibrationEnabled by viewModel.timerVibrationEnabled.collectAsStateWithLifecycle()
+    val timerSoundEnabled by viewModel.timerSoundEnabled.collectAsStateWithLifecycle()
+
     val selectedExercise by viewModel.selectedExercise.collectAsStateWithLifecycle()
     val selectedExerciseMedia by viewModel.selectedExerciseMedia.collectAsStateWithLifecycle()
     val selectedExerciseSets by viewModel.selectedExerciseSets.collectAsStateWithLifecycle()
@@ -375,6 +378,9 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                         onDeletePlan = { plan ->
                             viewModel.deletePlan(plan)
                         },
+                        onDuplicatePlan = { plan ->
+                            viewModel.duplicatePlan(plan)
+                        },
                         onCreateCustomExercise = { ex ->
                             viewModel.createCustomExercise(ex)
                         },
@@ -444,6 +450,7 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                             viewModel.getChartPointsForMeasurement(list, metric)
                         },
                         onAddMeasurement = { m -> viewModel.addBodyMeasurement(m) },
+                        onUpdateMeasurement = { m -> viewModel.updateBodyMeasurement(m) },
                         onDeleteMeasurement = { m -> viewModel.deleteBodyMeasurement(m) },
                         onBack = { currentScreenRoute = "home" }
                     )
@@ -457,6 +464,10 @@ fun MainAppContent(viewModel: WorkoutViewModel) {
                         onSaveBackupPassword = { pass -> viewModel.setBackupPassword(pass) },
                         onExportBackup = { uri, password, callback -> viewModel.exportBackup(uri, password, callback) },
                         onRestoreBackup = { uri, password, callback -> viewModel.restoreBackup(uri, password, callback) },
+                        timerVibrationEnabled = timerVibrationEnabled,
+                        onTimerVibrationChange = { viewModel.setTimerVibrationEnabled(it) },
+                        timerSoundEnabled = timerSoundEnabled,
+                        onTimerSoundChange = { viewModel.setTimerSoundEnabled(it) },
                         onBack = { currentScreenRoute = "home" }
                     )
                 }

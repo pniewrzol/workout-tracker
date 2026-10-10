@@ -30,12 +30,18 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Notes
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Whatshot
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -61,6 +67,7 @@ import com.example.data.model.WorkoutSetLog
 import com.example.ui.theme.AthleticOrange
 import com.example.ui.theme.ElectricCyan
 import com.example.ui.theme.SuccessGreen
+import com.example.util.WorkoutMetricsCalculator
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -80,10 +87,27 @@ fun WorkoutHistoryScreen(
     val mainSessions = remember(sessions) { sessions.filter { it.isMainWorkout } }
     val warmupSessions = remember(sessions) { sessions.filter { !it.isMainWorkout } }
 
-    val filteredSessions = when (selectedFilterIndex) {
+    var searchQuery by remember { mutableStateOf("") }
+
+    val baseSessions = when (selectedFilterIndex) {
         1 -> mainSessions
         2 -> warmupSessions
         else -> sessions
+    }
+
+    val filteredSessions = remember(baseSessions, searchQuery, allCompletedSets, exerciseMap) {
+        if (searchQuery.isBlank()) baseSessions
+        else {
+            val q = searchQuery.trim().lowercase()
+            baseSessions.filter { session ->
+                session.workoutName.lowercase().contains(q) ||
+                session.notes.lowercase().contains(q) ||
+                SimpleDateFormat("dd MMMM yyyy", Locale("pl", "PL")).format(Date(session.startTime)).lowercase().contains(q) ||
+                allCompletedSets.any { setLog ->
+                    setLog.sessionId == session.id && (exerciseMap[setLog.exerciseId]?.name?.lowercase()?.contains(q) == true)
+                }
+            }
+        }
     }
 
     Column(
@@ -103,6 +127,36 @@ fun WorkoutHistoryScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+
+        // Wyszukiwarka sesji i ćwiczeń
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            placeholder = { Text("Szukaj po nazwie planu, ćwiczeniu, dacie...") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Szukaj",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            trailingIcon = {
+                if (searchQuery.isNotBlank()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Wyczyść wyszukiwanie",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+        )
 
         // Filter chips row
         Row(
@@ -212,6 +266,22 @@ fun HistorySessionCard(
     val totalVolume = mainSets.sumOf { (it.weightKg * it.reps).toDouble() }.toLong()
     val setsCount = effectiveSets.size
 
+    val calories = remember(session.durationSeconds, totalVolume, setsCount) {
+        WorkoutMetricsCalculator.calculateCalories(
+            durationSeconds = session.durationSeconds,
+            totalTonnageKg = totalVolume.toFloat(),
+            completedSetsCount = setsCount
+        )
+    }
+
+    val (intensityLabel, intensityColor) = remember(session.durationSeconds, totalVolume, setsCount) {
+        WorkoutMetricsCalculator.calculateIntensity(
+            durationSeconds = session.durationSeconds,
+            totalTonnageKg = totalVolume.toFloat(),
+            completedSetsCount = setsCount
+        )
+    }
+
     val groupedByExercise = remember(sessionSets) {
         sessionSets.groupBy { it.exerciseId }
     }
@@ -302,7 +372,8 @@ fun HistorySessionCard(
             // Metrics Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
@@ -337,16 +408,52 @@ fun HistorySessionCard(
                     )
 
                     Text(
-                        text = "Objętość: ${totalVolume}kg",
+                        text = "${totalVolume}kg",
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Bold,
                         color = ElectricCyan
                     )
+
+                    Text(
+                        text = "•",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Whatshot,
+                            contentDescription = null,
+                            tint = AthleticOrange,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(
+                            text = "~$calories kcal",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = AthleticOrange
+                        )
+                    }
                 } else {
                     Text(
-                        text = "${groupedByExercise.size} ćwiczeń mobilizacyjnych",
+                        text = "${groupedByExercise.size} ćwiczeń",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = intensityColor.copy(alpha = 0.15f)
+                ) {
+                    Text(
+                        text = intensityLabel,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = intensityColor,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
             }

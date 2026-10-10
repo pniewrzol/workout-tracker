@@ -2,7 +2,13 @@ package com.example.ui.viewmodel
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.net.Uri
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -56,12 +62,61 @@ enum class MeasurementMetric(val label: String, val unit: String) {
 class WorkoutViewModel(
     private val repository: WorkoutRepository,
     private val sharedPreferences: SharedPreferences,
-    private val securePasswordStorage: SecurePasswordStorage
+    private val securePasswordStorage: SecurePasswordStorage,
+    private val context: Context? = null
 ) : ViewModel() {
 
     init {
         viewModelScope.launch {
             repository.checkAndSeedExercises()
+        }
+    }
+
+    // Timer notification preferences
+    private val _timerVibrationEnabled = MutableStateFlow(sharedPreferences.getBoolean("timer_vibration_enabled", true))
+    val timerVibrationEnabled: StateFlow<Boolean> = _timerVibrationEnabled.asStateFlow()
+
+    private val _timerSoundEnabled = MutableStateFlow(sharedPreferences.getBoolean("timer_sound_enabled", true))
+    val timerSoundEnabled: StateFlow<Boolean> = _timerSoundEnabled.asStateFlow()
+
+    fun setTimerVibrationEnabled(enabled: Boolean) {
+        _timerVibrationEnabled.value = enabled
+        sharedPreferences.edit().putBoolean("timer_vibration_enabled", enabled).apply()
+    }
+
+    fun setTimerSoundEnabled(enabled: Boolean) {
+        _timerSoundEnabled.value = enabled
+        sharedPreferences.edit().putBoolean("timer_sound_enabled", enabled).apply()
+    }
+
+    private fun notifyRestTimerFinished() {
+        val appContext = context ?: return
+        if (_timerVibrationEnabled.value) {
+            try {
+                val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val manager = appContext.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                    manager?.defaultVibrator
+                } else {
+                    @Suppress("DEPRECATION")
+                    appContext.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+                }
+                if (vibrator != null && vibrator.hasVibrator()) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        val timings = longArrayOf(0, 250, 150, 250, 150, 450)
+                        val amplitudes = intArrayOf(0, 200, 0, 200, 0, 255)
+                        vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        vibrator.vibrate(longArrayOf(0, 250, 150, 250, 150, 450), -1)
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+        if (_timerSoundEnabled.value) {
+            try {
+                val toneGen = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 85)
+                toneGen.startTone(ToneGenerator.TONE_PROP_BEEP2, 400)
+            } catch (_: Exception) {}
         }
     }
 
@@ -193,6 +248,7 @@ class WorkoutViewModel(
                         _restTimerRemainingSeconds.value = current
                         if (current <= 0) {
                             _isRestTimerActive.value = false
+                            notifyRestTimerFinished()
                             break
                         }
                     }
@@ -248,6 +304,12 @@ class WorkoutViewModel(
     fun setActivePlan(planId: Long) {
         viewModelScope.launch {
             repository.setActivePlan(planId)
+        }
+    }
+
+    fun duplicatePlan(plan: WorkoutPlan) {
+        viewModelScope.launch {
+            repository.duplicatePlan(plan)
         }
     }
 
@@ -587,7 +649,7 @@ class WorkoutViewModelFactory(
         if (modelClass.isAssignableFrom(WorkoutViewModel::class.java)) {
             val prefs = context.getSharedPreferences("app_settings_prefs", Context.MODE_PRIVATE)
             val secureStorage = SecurePasswordStorage(context.applicationContext)
-            return WorkoutViewModel(repository, prefs, secureStorage) as T
+            return WorkoutViewModel(repository, prefs, secureStorage, context.applicationContext) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
